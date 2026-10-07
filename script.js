@@ -15,6 +15,30 @@ const marketplaceItems = [
 ];
 
 /* =====================================================
+   FIREBASE INITIALIZATION
+===================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyCz5jwtnPd-zw32eGhF7LCtR59WNYQ4cnE",
+  authDomain: "nmit-bazaar.firebaseapp.com",
+  projectId: "nmit-bazaar",
+  storageBucket: "nmit-bazaar.firebasestorage.app",
+  messagingSenderId: "1064459826757",
+  appId: "1:1064459826757:web:c6b86ac236559b87d5552c"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const CLOUDINARY_CLOUD_NAME = "a9wphmyb";
+const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";
+
+console.log("Firebase connected successfully! 🚀");
+
+// In-memory array synced live from Firestore
+let marketplaceItems = [];
+
+/* =====================================================
    ELEMENTS & CONNECTION STATUS
 ===================================================== */
 const connectionDot = document.getElementById("connectionDot");
@@ -342,10 +366,13 @@ if(triggerImageBtn && itemImageInput) {
     });
 }
 
-if(createListingForm) {
-    createListingForm.addEventListener("submit", function(e) {
+/* =====================================================
+   CREATE LISTING (CLOUDINARY UPLOAD -> FIRESTORE DOCUMENT)
+===================================================== */
+if (createListingForm) {
+    createListingForm.addEventListener("submit", async function(e) {
         e.preventDefault();
-        
+
         const name = document.getElementById("itemName").value.trim();
         const price = parseFloat(document.getElementById("itemPrice").value);
         const category = document.getElementById("itemCategory").value;
@@ -362,33 +389,63 @@ if(createListingForm) {
             return;
         }
 
-        if(formError) formError.classList.add("hidden");
+        if (formError) formError.classList.add("hidden");
 
-        const newIcon = imagePreview.innerHTML.includes("<img") 
-            ? imagePreview.innerHTML 
-            : "📦";
+        const submitBtn = createListingForm.querySelector(".submit-btn");
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Uploading image...";
 
-        marketplaceItems.unshift({
-            id: "item-" + Date.now(),
-            name: name,
-            category: category,
-            icon: newIcon,
-            price: price,
-            isFavorite: false
-        });
+        try {
+            // 1. Upload raw image directly to Cloudinary via REST API
+            const formData = new FormData();
+            formData.append("file", imageFile);
+            formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
-        renderProducts(marketplaceItems);
+            const uploadRes = await fetch(
+                `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
 
-        alert("Success! Your item has been added to the marketplace.");
-        
-        createListingForm.reset();
-        if(imagePreview) imagePreview.innerHTML = `<span>+ Upload Image</span>`;
-        
-        const homeNav = document.querySelector('[data-page="home"]');
-        if(homeNav) homeNav.click();
-        
-        const marketSection = document.querySelector(".marketplace-section");
-        if(marketSection) marketSection.scrollIntoView({ behavior: "smooth" });
+            if (!uploadRes.ok) {
+                const errData = await uploadRes.json();
+                throw new Error(errData.error?.message || "Cloudinary upload failed");
+            }
+
+            const uploadData = await uploadRes.json();
+            const imageUrl = uploadData.secure_url; // Hosted CDN HTTPS image URL
+
+            submitBtn.textContent = "Saving to marketplace...";
+
+            // 2. Save only metadata and the image URL to Firestore
+            await db.collection("listings").add({
+                name: name,
+                price: price,
+                category: category,
+                description: desc,
+                imageUrl: imageUrl,
+                isFavorite: false,
+                isSold: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            alert("Success! Your item is live on NMIT Bazaar.");
+
+            createListingForm.reset();
+            if (imagePreview) imagePreview.innerHTML = `<span>+ Upload Image</span>`;
+
+            const homeNav = document.querySelector('[data-page="home"]');
+            if (homeNav) homeNav.click();
+
+        } catch (err) {
+            console.error("Listing submission error:", err);
+            showError(err.message || "Failed to publish listing. Please check connection.");
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Publish Listing";
+        }
     });
 }
 
