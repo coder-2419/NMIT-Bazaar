@@ -11,7 +11,7 @@
 </head>
 <body>
     <!-- =====================================================
-         POP LOADING SCREEN (NO CONNECTION BLOCKERS)
+         POP LOADING SCREEN
     ===================================================== -->
     <div id="loadingScreen" class="loading-screen">
         <div class="loading-content">
@@ -27,7 +27,7 @@
          APPLICATION
     ===================================================== -->
     <div id="app" class="app hidden">
-        <!-- TOP NAVIGATION -->
+        <!-- TOP APP BAR -->
         <header class="navbar">
             <div class="nav-brand">
                 <div class="brand-logo">
@@ -39,7 +39,8 @@
                 </div>
             </div>
 
-            <nav class="nav-links">
+            <!-- DESKTOP NAV LINKS -->
+            <nav class="nav-links desktop-nav">
                 <button class="nav-link active" data-page="home">Home</button>
                 <button class="nav-link" data-page="messages">
                     <svg class="nav-icon-svg" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
@@ -48,13 +49,36 @@
                 <button class="nav-link sell-nav" data-page="sell">
                     <span class="sell-plus">+</span><span>Sell</span>
                 </button>
-                <button class="nav-link profile-nav hidden" id="profileNavLink" data-page="profile">
+                <button class="nav-link profile-nav hidden" id="desktopProfileNavLink" data-page="profile">
                     <img src="profile.png" alt="Profile" onerror="this.style.display='none'">
                     <span>Profile</span>
                 </button>
-                <button id="authBtn" type="button" class="auth-nav-btn">Sign In</button>
             </nav>
+
+            <div class="nav-actions">
+                <button id="authBtn" type="button" class="auth-nav-btn">Sign In</button>
+            </div>
         </header>
+
+        <!-- MOBILE BOTTOM NAVIGATION DOCK -->
+        <nav class="mobile-bottom-nav">
+            <button class="bottom-tab-btn active" data-page="home">
+                <span class="b-icon">🏠</span>
+                <span class="b-text">Home</span>
+            </button>
+            <button class="bottom-tab-btn" data-page="messages">
+                <span class="b-icon">💬</span>
+                <span class="b-text">Messages</span>
+            </button>
+            <button class="bottom-tab-btn bottom-sell-btn" data-page="sell">
+                <div class="b-plus">+</div>
+                <span class="b-text">Sell</span>
+            </button>
+            <button class="bottom-tab-btn hidden" id="bottomProfileTab" data-page="profile">
+                <span class="b-icon">👤</span>
+                <span class="b-text">Profile</span>
+            </button>
+        </nav>
 
         <!-- =====================================================
              HOME PAGE
@@ -83,6 +107,7 @@
                 </div>
             </section>
 
+            <!-- CATEGORIES -->
             <section class="section">
                 <div class="section-heading">
                     <div><h2>Browse Categories</h2></div>
@@ -115,6 +140,7 @@
                 </div>
             </section>
 
+            <!-- MARKETPLACE FEED -->
             <section class="section marketplace-section">
                 <div class="marketplace-header">
                     <div>
@@ -216,7 +242,7 @@
             
                         <div class="form-group">
                             <label for="itemDescription">Description</label>
-                            <textarea id="itemDescription" rows="4" placeholder="Describe condition, contact details, etc." required></textarea>
+                            <textarea id="itemDescription" rows="4" placeholder="Describe the item condition, details, etc." required></textarea>
                         </div>
             
                         <button type="submit" class="primary-button submit-btn">Publish Listing</button>
@@ -227,18 +253,21 @@
         </main>
 
         <!-- =====================================================
-             PROFILE & FAVORITES PAGE (AUTH PROTECTED)
+             PROFILE & FAVORITES PAGE (GMAIL AUTH PROTECTED)
+        ===================================================== -->
+        <!-- =====================================================
+             PROFILE & FAVORITES PAGE (GMAIL AUTH PROTECTED)
         ===================================================== -->
         <main id="profilePage" class="page">
             <section class="simple-page">
                 <div class="profile-header-card">
                     <img src="profile.png" alt="Profile" class="profile-large" onerror="this.style.display='none'">
                     <div class="profile-info">
-                        <h2 id="userNameDisplay">Student</h2>
+                        <h2 id="userNameDisplay">—</h2>
                         <p>
-                            <span id="userProgramDisplay">Undergraduate - BTech</span> • 
-                            <span id="userDeptDisplay">Engineering</span> • 
-                            Batch of <span id="userYearDisplay">2024</span>
+                            <span id="userProgramDisplay">Program not set</span> • 
+                            <span id="userDeptDisplay">Department not set</span> • 
+                            Batch of <span id="userYearDisplay">—</span>
                         </p>
                         <button class="secondary-button edit-profile-btn" id="editProfileBtn">Edit Profile</button>
                     </div>
@@ -385,7 +414,7 @@
         </footer>
     </div>
 
-    <!-- Firebase Core, Firestore & Auth -->
+    <!-- Firebase Core, Firestore & Auth (v9 compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>

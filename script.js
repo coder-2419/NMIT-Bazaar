@@ -1,10 +1,10 @@
 /* =====================================================
-   NMIT BAZAAR - CLIENT SCRIPT
+   NMIT BAZAAR - CLIENT LOGIC
 ===================================================== */
 console.log("Script connected successfully! 🚀");
 
 /* =====================================================
-   1. FIREBASE & CLOUDINARY CONFIGURATION
+   1. FIREBASE & CLOUDINARY INITIALIZATION
 ===================================================== */
 const firebaseConfig = {
   apiKey: "AIzaSyCz5jwtnPd-zw32eGhF7LCtR59WNYQ4cnE",
@@ -297,8 +297,7 @@ const chatInput = document.getElementById("chatInput");
 const chatSendBtn = document.getElementById("chatSendBtn");
 
 function startChatWithItem(item) {
-    const messagesNav = document.querySelector('[data-page="messages"]');
-    if (messagesNav) messagesNav.click();
+    switchNavigationTab("messages");
 
     const sellerName = item.sellerName || (item.sellerEmail ? item.sellerEmail.split("@")[0] : "Student Seller");
 
@@ -343,9 +342,8 @@ if (chatInput) {
 }
 
 /* =====================================================
-   9. PAGE NAVIGATION & ROUTE GATING
+   9. UNIFIED NAVIGATION ROUTING (DESKTOP + MOBILE)
 ===================================================== */
-const navLinks = document.querySelectorAll(".nav-link");
 const pages = {
     home: document.getElementById("homePage"),
     messages: document.getElementById("messagesPage"),
@@ -353,32 +351,46 @@ const pages = {
     profile: document.getElementById("profilePage")
 };
 
-navLinks.forEach(button => {
-    button.addEventListener("click", () => {
-        const target = button.dataset.page;
-        if (!target || !pages[target]) return;
+function switchNavigationTab(targetPage) {
+    if (!targetPage || !pages[targetPage]) return;
 
-        // Gate sell and profile tabs behind login
-        if ((target === "sell" || target === "profile") && !currentUser) {
-            alert("Please sign in with your Gmail account first.");
-            openAuthModal(false);
-            return;
-        }
+    if ((targetPage === "sell" || targetPage === "profile") && !currentUser) {
+        alert("Please sign in with your Gmail account first.");
+        openAuthModal(false);
+        return;
+    }
 
-        navLinks.forEach(btn => btn.classList.remove("active"));
-        button.classList.add("active");
-        
-        Object.values(pages).forEach(p => {
-            if (p) p.classList.remove("active-page");
-        });
-        pages[target].classList.add("active-page");
-
-        if (target === "profile") {
-            renderFavorites();
-            renderMyListings();
-        }
-        window.scrollTo({ top: 0, behavior: "smooth" });
+    // Sync Desktop Nav links
+    document.querySelectorAll(".nav-link").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-page") === targetPage);
     });
+
+    // Sync Mobile Bottom tabs
+    document.querySelectorAll(".bottom-tab-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-page") === targetPage);
+    });
+
+    // Display active page
+    Object.values(pages).forEach(p => {
+        if (p) p.classList.remove("active-page");
+    });
+    pages[targetPage].classList.add("active-page");
+
+    if (targetPage === "profile") {
+        renderFavorites();
+        renderMyListings();
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// Bind desktop nav buttons
+document.querySelectorAll(".nav-link").forEach(btn => {
+    btn.addEventListener("click", () => switchNavigationTab(btn.getAttribute("data-page")));
+});
+
+// Bind mobile bottom dock buttons
+document.querySelectorAll(".bottom-tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => switchNavigationTab(btn.getAttribute("data-page")));
 });
 
 /* =====================================================
@@ -390,14 +402,9 @@ categoryButtons.forEach(button => {
         const category = button.dataset.category;
         const filtered = marketplaceItems.filter(item => item.category === category);
         
-        Object.values(pages).forEach(p => p && p.classList.remove("active-page"));
-        if (pages.home) pages.home.classList.add("active-page");
-        
-        navLinks.forEach(btn => btn.classList.remove("active"));
-        const homeBtn = document.querySelector('[data-page="home"]');
-        if (homeBtn) homeBtn.classList.add("active");
-        
+        switchNavigationTab("home");
         renderProducts(filtered);
+        
         const marketSection = document.querySelector(".marketplace-section");
         if (marketSection) marketSection.scrollIntoView({ behavior: "smooth" });
     });
@@ -527,8 +534,7 @@ if (createListingForm) {
             createListingForm.reset();
             if (imagePreview) imagePreview.innerHTML = `<span>+ Upload Image</span>`;
             
-            const homeNav = document.querySelector('[data-page="home"]');
-            if (homeNav) homeNav.click();
+            switchNavigationTab("home");
 
         } catch (err) {
             console.error(err);
@@ -544,9 +550,10 @@ if (createListingForm) {
 }
 
 /* =====================================================
-   13. AUTHENTICATION & PROFILE TAB VISIBILITY
+   13. AUTHENTICATION, PROFILE SYNC & AUTO-REDIRECT
 ===================================================== */
-const profileNavLink = document.getElementById("profileNavLink");
+const desktopProfileNavLink = document.getElementById("desktopProfileNavLink");
+const bottomProfileTab = document.getElementById("bottomProfileTab");
 const authBtn = document.getElementById("authBtn");
 const authModal = document.getElementById("authModal");
 const closeAuthModal = document.getElementById("closeAuthModal");
@@ -559,18 +566,46 @@ const authSubmitBtn = document.getElementById("authSubmitBtn");
 const tabSignIn = document.getElementById("tabSignIn");
 const tabSignUp = document.getElementById("tabSignUp");
 
-auth.onAuthStateChanged((user) => {
+auth.onAuthStateChanged(async (user) => {
     currentUser = user;
     if (user) {
         if (authBtn) authBtn.textContent = "Sign Out";
-        if (profileNavLink) profileNavLink.classList.remove("hidden"); // Reveal Profile Tab
-        const nameDisplay = document.getElementById("userNameDisplay");
-        if (nameDisplay) nameDisplay.textContent = user.displayName || user.email.split("@")[0];
+        if (desktopProfileNavLink) desktopProfileNavLink.classList.remove("hidden");
+        if (bottomProfileTab) bottomProfileTab.classList.remove("hidden");
+
+        // Load profile from Firestore
+        await loadUserProfile(user.uid);
     } else {
         if (authBtn) authBtn.textContent = "Sign In";
-        if (profileNavLink) profileNavLink.classList.add("hidden"); // Hide Profile Tab
+        if (desktopProfileNavLink) desktopProfileNavLink.classList.add("hidden");
+        if (bottomProfileTab) bottomProfileTab.classList.add("hidden");
+
+        // Reset profile labels when logged out
+        document.getElementById("userNameDisplay").textContent = "—";
+        document.getElementById("userProgramDisplay").textContent = "Program not set";
+        document.getElementById("userDeptDisplay").textContent = "Department not set";
+        document.getElementById("userYearDisplay").textContent = "—";
     }
 });
+
+async function loadUserProfile(uid) {
+    try {
+        const docSnap = await db.collection("users").doc(uid).get();
+        if (docSnap.exists) {
+            const data = docSnap.data();
+            document.getElementById("userNameDisplay").textContent = data.fullName || currentUser.email.split("@")[0];
+            document.getElementById("userProgramDisplay").textContent = data.program || "Program not set";
+            document.getElementById("userDeptDisplay").textContent = data.department || "Department not set";
+            document.getElementById("userYearDisplay").textContent = data.joiningYear || "—";
+            return true;
+        } else {
+            return false;
+        }
+    } catch (e) {
+        console.error("Error fetching user profile:", e);
+        return false;
+    }
+}
 
 function openAuthModal(signup = false) {
     if (!authModal) return;
@@ -598,8 +633,7 @@ if (authBtn) {
         if (currentUser) {
             if (confirm("Do you want to sign out?")) {
                 auth.signOut().then(() => {
-                    const homeNav = document.querySelector('[data-page="home"]');
-                    if (homeNav) homeNav.click();
+                    switchNavigationTab("home");
                 });
             }
         } else {
@@ -624,13 +658,26 @@ if (authForm) {
         authSubmitBtn.disabled = true;
 
         try {
+            let userCredential;
             if (isSignUpMode) {
-                await auth.createUserWithEmailAndPassword(email, password);
-                alert("Account created successfully!");
+                userCredential = await auth.createUserWithEmailAndPassword(email, password);
             } else {
-                await auth.signInWithEmailAndPassword(email, password);
+                userCredential = await auth.signInWithEmailAndPassword(email, password);
             }
+
             closeAuthModalHandler();
+
+            // Check if profile exists; if not or if signing up, prompt for profile setup
+            const profileExists = await loadUserProfile(userCredential.user.uid);
+            
+            // Redirect immediately to Profile tab and popup the Edit Profile form
+            switchNavigationTab("profile");
+            if (!profileExists || isSignUpMode) {
+                setTimeout(() => {
+                    openEditProfileModalForSetup();
+                }, 300);
+            }
+
         } catch (err) {
             authError.textContent = err.message;
             authError.classList.remove("hidden");
@@ -641,7 +688,7 @@ if (authForm) {
 }
 
 /* =====================================================
-   14. PROFILE EDITING MODAL
+   14. PROFILE EDITING MODAL (FIRESTORE PERSISTENCE)
 ===================================================== */
 const editProfileBtn = document.getElementById("editProfileBtn");
 const editProfileModal = document.getElementById("editProfileModal");
@@ -662,32 +709,73 @@ programPills.forEach(pill => {
     });
 });
 
+function openEditProfileModalForSetup() {
+    if (!editProfileModal) return;
+
+    // Reset input fields to blank so no old default remains
+    document.getElementById("editFullName").value = currentUser?.displayName || "";
+    document.getElementById("editDepartment").value = "";
+    editJoiningYear.value = "";
+
+    // Default first program pill
+    programPills.forEach((p, idx) => p.classList.toggle("active", idx === 0));
+    if (selectedProgramInput) selectedProgramInput.value = "Undergraduate - BTech";
+
+    editProfileModal.classList.remove("hidden");
+}
+
 if (editProfileBtn) {
     editProfileBtn.addEventListener("click", () => {
         if (!editProfileModal) return;
+
+        // Pre-fill existing non-default text if present
+        const currentName = document.getElementById("userNameDisplay").textContent;
+        const currentDept = document.getElementById("userDeptDisplay").textContent;
+        const currentYear = document.getElementById("userYearDisplay").textContent;
+
+        document.getElementById("editFullName").value = currentName !== "—" ? currentName : "";
+        document.getElementById("editDepartment").value = currentDept !== "Department not set" ? currentDept : "";
+        editJoiningYear.value = currentYear !== "—" ? currentYear : "";
+
         editProfileModal.classList.remove("hidden");
     });
 }
+
 if (closeProfileModal) closeProfileModal.addEventListener("click", () => editProfileModal.classList.add("hidden"));
 if (cancelProfileModal) cancelProfileModal.addEventListener("click", () => editProfileModal.classList.add("hidden"));
 
 if (editProfileForm) {
-    editProfileForm.addEventListener("submit", (e) => {
+    editProfileForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const newName = document.getElementById("editFullName").value.trim();
         const newDept = document.getElementById("editDepartment").value.trim();
         const enteredYear = parseInt(editJoiningYear.value, 10);
         const thisYear = new Date().getFullYear();
+        const program = selectedProgramInput ? selectedProgramInput.value : "Undergraduate - BTech";
 
         if (enteredYear > thisYear) {
             alert(`Joining year cannot exceed ${thisYear}.`);
             return;
         }
 
-        if (newName) document.getElementById("userNameDisplay").textContent = newName;
-        if (newDept) document.getElementById("userDeptDisplay").textContent = newDept;
+        // Save into Firestore under `users/{uid}`
+        if (currentUser) {
+            await db.collection("users").doc(currentUser.uid).set({
+                fullName: newName,
+                department: newDept,
+                program: program,
+                joiningYear: enteredYear,
+                email: currentUser.email,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+
+        // Update UI
+        document.getElementById("userNameDisplay").textContent = newName;
+        document.getElementById("userDeptDisplay").textContent = newDept;
         document.getElementById("userYearDisplay").textContent = enteredYear;
-        if (selectedProgramInput) document.getElementById("userProgramDisplay").textContent = selectedProgramInput.value;
+        document.getElementById("userProgramDisplay").textContent = program;
+
         editProfileModal.classList.add("hidden");
     });
 }
