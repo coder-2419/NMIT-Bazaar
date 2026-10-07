@@ -29,6 +29,9 @@ const firebaseConfig = {
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const auth = firebase.auth();
+
+let currentUser = null;
 
 const CLOUDINARY_CLOUD_NAME = "a9wphmyb";
 const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";
@@ -651,6 +654,130 @@ if (listingsTab) {
             card.classList.toggle("sold-out");
         } else if (e.target.closest(".edit-btn")) {
             alert("This will open the 'Edit Listing' form populated with this item's data.");
+        }
+    });
+}
+/* =====================================================
+   FIREBASE AUTHENTICATION (GMAIL GATE)
+===================================================== */
+let isSignUpMode = false;
+
+const authBtn = document.getElementById("authBtn");
+const authModal = document.getElementById("authModal");
+const closeAuthModal = document.getElementById("closeAuthModal");
+const authForm = document.getElementById("authForm");
+const authEmail = document.getElementById("authEmail");
+const authPassword = document.getElementById("authPassword");
+const authError = document.getElementById("authError");
+const authModalTitle = document.getElementById("authModalTitle");
+const authSubmitBtn = document.getElementById("authSubmitBtn");
+const tabSignIn = document.getElementById("tabSignIn");
+const tabSignUp = document.getElementById("tabSignUp");
+
+// 1. Listen for Authentication Changes across tabs/reloads
+auth.onAuthStateChanged((user) => {
+    currentUser = user;
+    if (user) {
+        if (authBtn) authBtn.textContent = "Sign Out";
+        if (userNameDisplay) userNameDisplay.textContent = user.displayName || user.email.split("@")[0];
+    } else {
+        if (authBtn) authBtn.textContent = "Sign In";
+    }
+});
+
+// 2. Open / Close Modal Handlers
+function openAuthModal(signup = false) {
+    if (!authModal) return;
+    setAuthMode(signup);
+    if (authError) authError.classList.add("hidden");
+    authModal.classList.remove("hidden");
+}
+
+function closeAuthModalHandler() {
+    if (!authModal) return;
+    authModal.classList.add("hidden");
+    if (authForm) authForm.reset();
+}
+
+function setAuthMode(signup) {
+    isSignUpMode = signup;
+    if (isSignUpMode) {
+        authModalTitle.textContent = "Create Account";
+        authSubmitBtn.textContent = "Register";
+        tabSignUp.classList.add("active");
+        tabSignIn.classList.remove("active");
+    } else {
+        authModalTitle.textContent = "Sign In";
+        authSubmitBtn.textContent = "Sign In";
+        tabSignIn.classList.add("active");
+        tabSignUp.classList.remove("active");
+    }
+}
+
+if (tabSignIn) tabSignIn.addEventListener("click", () => setAuthMode(false));
+if (tabSignUp) tabSignUp.addEventListener("click", () => setAuthMode(true));
+
+if (authBtn) {
+    authBtn.addEventListener("click", () => {
+        if (currentUser) {
+            if (confirm("Do you want to sign out?")) {
+                auth.signOut();
+            }
+        } else {
+            openAuthModal(false);
+        }
+    });
+}
+
+if (closeAuthModal) closeAuthModal.addEventListener("click", closeAuthModalHandler);
+if (authModal) {
+    authModal.addEventListener("click", (e) => {
+        if (e.target === authModal) closeAuthModalHandler();
+    });
+}
+
+// 3. Gmail Validation & Submit
+if (authForm) {
+    authForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = authEmail.value.trim().toLowerCase();
+        const password = authPassword.value;
+
+        // Domain Gate
+        if (!email.endsWith("@gmail.com")) {
+            authError.textContent = "Access restricted: Please use a valid @gmail.com address.";
+            authError.classList.remove("hidden");
+            return;
+        }
+
+        authError.classList.add("hidden");
+        authSubmitBtn.disabled = true;
+
+        try {
+            if (isSignUpMode) {
+                await auth.createUserWithEmailAndPassword(email, password);
+                alert("Account created successfully!");
+            } else {
+                await auth.signInWithEmailAndPassword(email, password);
+            }
+            closeAuthModalHandler();
+        } catch (err) {
+            authError.textContent = err.message;
+            authError.classList.remove("hidden");
+        } finally {
+            authSubmitBtn.disabled = false;
+        }
+    });
+}
+
+// 4. Gate Selling Behind Login
+const sellNavLink = document.querySelector('[data-page="sell"]');
+if (sellNavLink) {
+    sellNavLink.addEventListener("click", (e) => {
+        if (!currentUser) {
+            e.stopImmediatePropagation();
+            alert("Please sign in with your Gmail account to sell items.");
+            openAuthModal(false);
         }
     });
 }

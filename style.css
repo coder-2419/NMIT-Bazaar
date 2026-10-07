@@ -521,3 +521,63 @@ footer { margin-top: 90px; padding: 35px 5%; background: #13251f; color: white; 
     .marketplace-heading { font-size: 15px; }
     .hero-description { font-size: 14px; }
 }
+
+/* =====================================================
+   AUTH MODAL & GMAIL GATE STYLES
+===================================================== */
+.auth-nav-btn {
+    border: 1px solid var(--border) !important;
+    background: #edf6f1 !important;
+    color: var(--green-dark) !important;
+    font-weight: 700 !important;
+}
+
+.auth-nav-btn:hover {
+    background: var(--green) !important;
+    color: white !important;
+}
+
+.auth-modal-card {
+    max-width: 400px;
+}
+
+.auth-toggle-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    background: #f0f5f2;
+    padding: 4px;
+    border-radius: 12px;
+}
+
+.auth-toggle-btn {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    color: var(--muted);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.auth-toggle-btn.active {
+    background: white;
+    color: var(--text);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.input-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+}
+
+.auth-submit-btn {
+    width: 100%;
+    margin-top: 15px;
+    padding: 12px;
+}

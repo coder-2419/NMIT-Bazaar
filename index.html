@@ -55,6 +55,7 @@
                     <img src="profile.png" alt="Profile" onerror="this.style.display='none'">
                     <span>Profile</span>
                 </button>
+                <button id="authBtn" class="nav-link auth-nav-btn">Sign In</button>
             </nav>
         </header>
 
@@ -374,9 +375,43 @@
         </footer>
     </div>
 
+    <!-- =====================================================
+             AUTH MODAL (GMAIL GATE)
+        ===================================================== -->
+        <div id="authModal" class="modal-overlay hidden">
+            <div class="modal-card auth-modal-card">
+                <div class="modal-header">
+                    <h3 id="authModalTitle">Sign In</h3>
+                    <button id="closeAuthModal" class="modal-close-btn">&times;</button>
+                </div>
+                
+                <div class="auth-toggle-tabs">
+                    <button type="button" class="auth-toggle-btn active" id="tabSignIn">Sign In</button>
+                    <button type="button" class="auth-toggle-btn" id="tabSignUp">Register</button>
+                </div>
+
+                <form id="authForm">
+                    <div class="modal-form-group">
+                        <label for="authEmail">Gmail Address</label>
+                        <input type="email" id="authEmail" placeholder="yourname@gmail.com" required autocomplete="email">
+                        <span class="input-hint">Must end with @gmail.com</span>
+                    </div>
+
+                    <div class="modal-form-group">
+                        <label for="authPassword">Password</label>
+                        <input type="password" id="authPassword" placeholder="Minimum 6 characters" required minlength="6" autocomplete="current-password">
+                    </div>
+
+                    <button type="submit" id="authSubmitBtn" class="primary-button modal-save-btn auth-submit-btn">Sign In</button>
+                    <div id="authError" class="form-error hidden"></div>
+                </form>
+            </div>
+        </div>
+
     <!-- Firebase App and Services (v9 compat mode for plain script tag use) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
     <script src="script.js"></script>
 </body>
