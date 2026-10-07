@@ -1,5 +1,10 @@
 /* =====================================================
-   BACKEND CONFIGURATION (FIRESTORE + CLOUDINARY)
+   NMIT BAZAAR - CLIENT SCRIPT
+===================================================== */
+console.log("Script connected successfully! 🚀");
+
+/* =====================================================
+   1. FIREBASE & CLOUDINARY CONFIGURATION
 ===================================================== */
 const firebaseConfig = {
   apiKey: "AIzaSyCz5jwtnPd-zw32eGhF7LCtR59WNYQ4cnE",
@@ -14,22 +19,24 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
-let currentUser = null;
 
+// Cloudinary Settings
 const CLOUDINARY_CLOUD_NAME = "a9wphmyb"; 
 const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";             
 
+// State Variables
+let currentUser = null;
 let marketplaceItems = [];
 let activeViewingItem = null;
+let isSignUpMode = false;
 
 /* =====================================================
-   FAST POP LOADING SCREEN (NO NETWORK CHECKS)
+   2. INSTANT POP LOADING SCREEN (NO BLOCKERS)
 ===================================================== */
 window.addEventListener("DOMContentLoaded", () => {
     const loadingScreen = document.getElementById("loadingScreen");
     const app = document.getElementById("app");
     
-    // Quick pop animation (1.2 seconds)
     setTimeout(() => {
         if (loadingScreen) {
             loadingScreen.classList.add("hide");
@@ -42,7 +49,7 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 
 /* =====================================================
-   REAL-TIME FIRESTORE LISTENER
+   3. REAL-TIME FIRESTORE LISTENER
 ===================================================== */
 db.collection("listings").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
     marketplaceItems = [];
@@ -61,7 +68,7 @@ db.collection("listings").orderBy("createdAt", "desc").onSnapshot((snapshot) => 
 });
 
 /* =====================================================
-   RENDER PRODUCTS
+   4. RENDER MARKETPLACE PRODUCTS
 ===================================================== */
 const productGrid = document.getElementById("productGrid");
 const resultCount = document.getElementById("resultCount");
@@ -103,7 +110,7 @@ function renderProducts(items) {
     });
 }
 
-// Card Click: Open Details or Toggle Favorite
+// Product Grid Click: Detail Modal or Favorite Toggle
 if (productGrid) {
     productGrid.addEventListener("click", (e) => {
         const favoriteBtn = e.target.closest(".favorite-toggle-btn");
@@ -122,7 +129,7 @@ if (productGrid) {
 }
 
 /* =====================================================
-   PRODUCT DETAIL & ZOOM LIGHTBOX
+   5. PRODUCT DETAIL & ZOOM LIGHTBOX
 ===================================================== */
 const productDetailModal = document.getElementById("productDetailModal");
 const closeDetailModal = document.getElementById("closeDetailModal");
@@ -148,8 +155,7 @@ function openProductDetailModal(itemId) {
     detailTitle.textContent = item.name;
     detailPrice.textContent = `₹${item.price}`;
     
-    // Display seller name (fallback to email prefix)
-    const sellerName = item.sellerName || (item.sellerEmail ? item.sellerEmail.split("@")[0] : "Campus Student");
+    const sellerName = item.sellerName || (item.sellerEmail ? item.sellerEmail.split("@")[0] : "Student Seller");
     detailSeller.textContent = sellerName;
     detailDescription.textContent = item.description || "No additional description provided.";
 
@@ -167,7 +173,7 @@ if (productDetailModal) {
     });
 }
 
-// Open Full-screen Zoom Lightbox
+// Fullscreen Image Lightbox
 if (detailImageWrapper && imageLightbox && lightboxImg) {
     detailImageWrapper.addEventListener("click", () => {
         if (detailModalImg.src) {
@@ -181,7 +187,7 @@ if (detailImageWrapper && imageLightbox && lightboxImg) {
     });
 }
 
-// Direct "Chat with Seller" from Detail Modal
+// Chat with Seller button inside modal
 if (modalChatSellerBtn) {
     modalChatSellerBtn.addEventListener("click", () => {
         if (!activeViewingItem) return;
@@ -191,7 +197,7 @@ if (modalChatSellerBtn) {
 }
 
 /* =====================================================
-   FAVORITES LOGIC
+   6. FAVORITES LOGIC
 ===================================================== */
 function toggleFavorite(itemId) {
     const item = marketplaceItems.find(i => i.id === itemId);
@@ -247,7 +253,7 @@ if (favoritesTab) {
 }
 
 /* =====================================================
-   MY LISTINGS (PROFILE)
+   7. MY LISTINGS (PROFILE TAB)
 ===================================================== */
 function renderMyListings() {
     const myListingsGrid = document.getElementById("myListingsGrid");
@@ -280,7 +286,7 @@ function renderMyListings() {
 }
 
 /* =====================================================
-   MESSAGES & DIRECT CHAT REDIRECT
+   8. MESSAGES & CHAT INTERACTION
 ===================================================== */
 const chatListingTitle = document.getElementById("chatListingTitle");
 const chatSellerSubtitle = document.getElementById("chatSellerSubtitle");
@@ -291,7 +297,6 @@ const chatInput = document.getElementById("chatInput");
 const chatSendBtn = document.getElementById("chatSendBtn");
 
 function startChatWithItem(item) {
-    // Switch to Messages tab
     const messagesNav = document.querySelector('[data-page="messages"]');
     if (messagesNav) messagesNav.click();
 
@@ -338,7 +343,7 @@ if (chatInput) {
 }
 
 /* =====================================================
-   PAGE NAVIGATION & ROUTE GATING
+   9. PAGE NAVIGATION & ROUTE GATING
 ===================================================== */
 const navLinks = document.querySelectorAll(".nav-link");
 const pages = {
@@ -353,7 +358,7 @@ navLinks.forEach(button => {
         const target = button.dataset.page;
         if (!target || !pages[target]) return;
 
-        // Gate sell and profile tabs
+        // Gate sell and profile tabs behind login
         if ((target === "sell" || target === "profile") && !currentUser) {
             alert("Please sign in with your Gmail account first.");
             openAuthModal(false);
@@ -377,7 +382,7 @@ navLinks.forEach(button => {
 });
 
 /* =====================================================
-   CATEGORIES FILTER
+   10. CATEGORY FILTER
 ===================================================== */
 const categoryButtons = document.querySelectorAll(".category-card");
 categoryButtons.forEach(button => {
@@ -399,7 +404,7 @@ categoryButtons.forEach(button => {
 });
 
 /* =====================================================
-   SEARCH LOGIC
+   11. SEARCH
 ===================================================== */
 const searchInput = document.getElementById("searchInput");
 const searchButton = document.getElementById("searchButton");
@@ -440,7 +445,7 @@ if (searchButton) {
 }
 
 /* =====================================================
-   CREATE LISTING (CLOUDINARY + FIRESTORE)
+   12. CREATE LISTING (CLOUDINARY + FIRESTORE)
 ===================================================== */
 const createListingForm = document.getElementById("createListingForm");
 const itemImageInput = document.getElementById("itemImage");
@@ -539,7 +544,7 @@ if (createListingForm) {
 }
 
 /* =====================================================
-   GMAIL AUTHENTICATION & PROFILE TAB VISIBILITY
+   13. AUTHENTICATION & PROFILE TAB VISIBILITY
 ===================================================== */
 const profileNavLink = document.getElementById("profileNavLink");
 const authBtn = document.getElementById("authBtn");
@@ -553,7 +558,6 @@ const authModalTitle = document.getElementById("authModalTitle");
 const authSubmitBtn = document.getElementById("authSubmitBtn");
 const tabSignIn = document.getElementById("tabSignIn");
 const tabSignUp = document.getElementById("tabSignUp");
-let isSignUpMode = false;
 
 auth.onAuthStateChanged((user) => {
     currentUser = user;
@@ -637,7 +641,7 @@ if (authForm) {
 }
 
 /* =====================================================
-   PROFILE EDITING MODAL
+   14. PROFILE EDITING MODAL
 ===================================================== */
 const editProfileBtn = document.getElementById("editProfileBtn");
 const editProfileModal = document.getElementById("editProfileModal");
