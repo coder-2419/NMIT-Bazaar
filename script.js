@@ -4,7 +4,7 @@
 console.log("Script connected successfully! 🚀");
 
 /* =====================================================
-   1. FIREBASE & CLOUDINARY INITIALIZATION
+   1. FIREBASE & CLOUDINARY CONFIGURATION
 ===================================================== */
 const firebaseConfig = {
   apiKey: "AIzaSyCz5jwtnPd-zw32eGhF7LCtR59WNYQ4cnE",
@@ -20,7 +20,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Cloudinary Settings
+// Cloudinary Unsigned Upload Settings
 const CLOUDINARY_CLOUD_NAME = "a9wphmyb"; 
 const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";             
 
@@ -28,7 +28,7 @@ const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";
 let currentUser = null;
 let marketplaceItems = [];
 let activeViewingItem = null;
-let isSignUpMode = false;
+let authMode = "signin"; // "signin" | "signup" | "reset"
 
 /* =====================================================
    2. INSTANT POP LOADING SCREEN (NO BLOCKERS)
@@ -187,7 +187,7 @@ if (detailImageWrapper && imageLightbox && lightboxImg) {
     });
 }
 
-// Chat with Seller button inside modal
+// Direct Chat with Seller button inside modal
 if (modalChatSellerBtn) {
     modalChatSellerBtn.addEventListener("click", () => {
         if (!activeViewingItem) return;
@@ -355,8 +355,8 @@ function switchNavigationTab(targetPage) {
     if (!targetPage || !pages[targetPage]) return;
 
     if ((targetPage === "sell" || targetPage === "profile") && !currentUser) {
-        alert("Please sign in with your Gmail account first.");
-        openAuthModal(false);
+        alert("Please sign in with your email account first.");
+        openAuthModal("signin");
         return;
     }
 
@@ -480,7 +480,7 @@ if (createListingForm) {
 
         if (!currentUser) {
             alert("Please sign in before posting an item.");
-            openAuthModal(false);
+            openAuthModal("signin");
             return;
         }
 
@@ -550,7 +550,7 @@ if (createListingForm) {
 }
 
 /* =====================================================
-   13. AUTHENTICATION, PROFILE SYNC & AUTO-REDIRECT
+   13. AUTHENTICATION (UNIVERSAL EMAIL, RESET & VERIFICATION)
 ===================================================== */
 const desktopProfileNavLink = document.getElementById("desktopProfileNavLink");
 const bottomProfileTab = document.getElementById("bottomProfileTab");
@@ -560,11 +560,15 @@ const closeAuthModal = document.getElementById("closeAuthModal");
 const authForm = document.getElementById("authForm");
 const authEmail = document.getElementById("authEmail");
 const authPassword = document.getElementById("authPassword");
+const passwordGroup = document.getElementById("passwordGroup");
 const authError = document.getElementById("authError");
+const authSuccess = document.getElementById("authSuccess");
 const authModalTitle = document.getElementById("authModalTitle");
 const authSubmitBtn = document.getElementById("authSubmitBtn");
 const tabSignIn = document.getElementById("tabSignIn");
 const tabSignUp = document.getElementById("tabSignUp");
+const authTabsContainer = document.getElementById("authTabsContainer");
+const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
 
 auth.onAuthStateChanged(async (user) => {
     currentUser = user;
@@ -573,14 +577,12 @@ auth.onAuthStateChanged(async (user) => {
         if (desktopProfileNavLink) desktopProfileNavLink.classList.remove("hidden");
         if (bottomProfileTab) bottomProfileTab.classList.remove("hidden");
 
-        // Load profile from Firestore
         await loadUserProfile(user.uid);
     } else {
         if (authBtn) authBtn.textContent = "Sign In";
         if (desktopProfileNavLink) desktopProfileNavLink.classList.add("hidden");
         if (bottomProfileTab) bottomProfileTab.classList.add("hidden");
 
-        // Reset profile labels when logged out
         document.getElementById("userNameDisplay").textContent = "—";
         document.getElementById("userProgramDisplay").textContent = "Program not set";
         document.getElementById("userDeptDisplay").textContent = "Department not set";
@@ -598,23 +600,47 @@ async function loadUserProfile(uid) {
             document.getElementById("userDeptDisplay").textContent = data.department || "Department not set";
             document.getElementById("userYearDisplay").textContent = data.joiningYear || "—";
             return true;
-        } else {
-            return false;
         }
+        return false;
     } catch (e) {
-        console.error("Error fetching user profile:", e);
+        console.error("Error loading user profile:", e);
         return false;
     }
 }
 
-function openAuthModal(signup = false) {
-    if (!authModal) return;
-    isSignUpMode = signup;
-    authModalTitle.textContent = isSignUpMode ? "Create Account" : "Sign In";
-    authSubmitBtn.textContent = isSignUpMode ? "Register" : "Sign In";
-    tabSignUp.classList.toggle("active", isSignUpMode);
-    tabSignIn.classList.toggle("active", !isSignUpMode);
+function setAuthMode(mode) {
+    authMode = mode;
     if (authError) authError.classList.add("hidden");
+    if (authSuccess) authSuccess.classList.add("hidden");
+
+    if (mode === "signin") {
+        authModalTitle.textContent = "Sign In";
+        authSubmitBtn.textContent = "Sign In";
+        passwordGroup.classList.remove("hidden");
+        authPassword.required = true;
+        authTabsContainer.classList.remove("hidden");
+        tabSignIn.classList.add("active");
+        tabSignUp.classList.remove("active");
+    } else if (mode === "signup") {
+        authModalTitle.textContent = "Create Account";
+        authSubmitBtn.textContent = "Register";
+        passwordGroup.classList.remove("hidden");
+        authPassword.required = true;
+        authTabsContainer.classList.remove("hidden");
+        tabSignUp.classList.add("active");
+        tabSignIn.classList.remove("active");
+    } else if (mode === "reset") {
+        authModalTitle.textContent = "Reset Password";
+        authSubmitBtn.textContent = "Send Reset Email";
+        passwordGroup.classList.add("hidden");
+        authPassword.required = false;
+        authTabsContainer.classList.add("hidden");
+    }
+}
+
+function openAuthModal(mode = "signin") {
+    if (!authModal) return;
+    setAuthMode(mode);
     authModal.classList.remove("hidden");
 }
 
@@ -623,8 +649,9 @@ function closeAuthModalHandler() {
     if (authForm) authForm.reset();
 }
 
-if (tabSignIn) tabSignIn.addEventListener("click", () => openAuthModal(false));
-if (tabSignUp) tabSignUp.addEventListener("click", () => openAuthModal(true));
+if (tabSignIn) tabSignIn.addEventListener("click", () => setAuthMode("signin"));
+if (tabSignUp) tabSignUp.addEventListener("click", () => setAuthMode("signup"));
+if (forgotPasswordBtn) forgotPasswordBtn.addEventListener("click", () => setAuthMode("reset"));
 if (closeAuthModal) closeAuthModal.addEventListener("click", closeAuthModalHandler);
 
 if (authBtn) {
@@ -632,12 +659,10 @@ if (authBtn) {
         e.preventDefault();
         if (currentUser) {
             if (confirm("Do you want to sign out?")) {
-                auth.signOut().then(() => {
-                    switchNavigationTab("home");
-                });
+                auth.signOut().then(() => switchNavigationTab("home"));
             }
         } else {
-            openAuthModal(false);
+            openAuthModal("signin");
         }
     });
 }
@@ -645,39 +670,37 @@ if (authBtn) {
 if (authForm) {
     authForm.addEventListener("submit", async (e) => {
         e.preventDefault();
-        const email = authEmail.value.trim().toLowerCase();
+        const email = authEmail.value.trim();
         const password = authPassword.value;
 
-        if (!email.endsWith("@gmail.com")) {
-            authError.textContent = "Access restricted: Please use a valid @gmail.com address.";
-            authError.classList.remove("hidden");
-            return;
-        }
-
-        authError.classList.add("hidden");
+        if (authError) authError.classList.add("hidden");
+        if (authSuccess) authSuccess.classList.add("hidden");
         authSubmitBtn.disabled = true;
 
         try {
-            let userCredential;
-            if (isSignUpMode) {
-                userCredential = await auth.createUserWithEmailAndPassword(email, password);
+            if (authMode === "reset") {
+                await auth.sendPasswordResetEmail(email);
+                authSuccess.textContent = `A password reset link was sent to ${email}. Check your inbox or spam folder.`;
+                authSuccess.classList.remove("hidden");
+            } else if (authMode === "signup") {
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                await userCredential.user.sendEmailVerification();
+
+                alert(`Account created! A verification link has been sent to ${email}. Please check your Inbox and Spam folder.`);
+
+                closeAuthModalHandler();
+                switchNavigationTab("profile");
+                setTimeout(() => openEditProfileModalForSetup(), 300);
             } else {
-                userCredential = await auth.signInWithEmailAndPassword(email, password);
+                const userCredential = await auth.signInWithEmailAndPassword(email, password);
+                closeAuthModalHandler();
+
+                const profileExists = await loadUserProfile(userCredential.user.uid);
+                switchNavigationTab("profile");
+                if (!profileExists) {
+                    setTimeout(() => openEditProfileModalForSetup(), 300);
+                }
             }
-
-            closeAuthModalHandler();
-
-            // Check if profile exists; if not or if signing up, prompt for profile setup
-            const profileExists = await loadUserProfile(userCredential.user.uid);
-            
-            // Redirect immediately to Profile tab and popup the Edit Profile form
-            switchNavigationTab("profile");
-            if (!profileExists || isSignUpMode) {
-                setTimeout(() => {
-                    openEditProfileModalForSetup();
-                }, 300);
-            }
-
         } catch (err) {
             authError.textContent = err.message;
             authError.classList.remove("hidden");
@@ -688,7 +711,7 @@ if (authForm) {
 }
 
 /* =====================================================
-   14. PROFILE EDITING MODAL (FIRESTORE PERSISTENCE)
+   14. PROFILE EDITING MODAL (FIRESTORE SYNC)
 ===================================================== */
 const editProfileBtn = document.getElementById("editProfileBtn");
 const editProfileModal = document.getElementById("editProfileModal");
@@ -712,12 +735,10 @@ programPills.forEach(pill => {
 function openEditProfileModalForSetup() {
     if (!editProfileModal) return;
 
-    // Reset input fields to blank so no old default remains
     document.getElementById("editFullName").value = currentUser?.displayName || "";
     document.getElementById("editDepartment").value = "";
     editJoiningYear.value = "";
 
-    // Default first program pill
     programPills.forEach((p, idx) => p.classList.toggle("active", idx === 0));
     if (selectedProgramInput) selectedProgramInput.value = "Undergraduate - BTech";
 
@@ -728,7 +749,6 @@ if (editProfileBtn) {
     editProfileBtn.addEventListener("click", () => {
         if (!editProfileModal) return;
 
-        // Pre-fill existing non-default text if present
         const currentName = document.getElementById("userNameDisplay").textContent;
         const currentDept = document.getElementById("userDeptDisplay").textContent;
         const currentYear = document.getElementById("userYearDisplay").textContent;
@@ -758,7 +778,6 @@ if (editProfileForm) {
             return;
         }
 
-        // Save into Firestore under `users/{uid}`
         if (currentUser) {
             await db.collection("users").doc(currentUser.uid).set({
                 fullName: newName,
@@ -770,7 +789,6 @@ if (editProfileForm) {
             }, { merge: true });
         }
 
-        // Update UI
         document.getElementById("userNameDisplay").textContent = newName;
         document.getElementById("userDeptDisplay").textContent = newDept;
         document.getElementById("userYearDisplay").textContent = enteredYear;

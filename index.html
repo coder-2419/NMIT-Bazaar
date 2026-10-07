@@ -60,7 +60,7 @@
             </div>
         </header>
 
-        <!-- MOBILE BOTTOM NAVIGATION DOCK -->
+        <!-- MOBILE BOTTOM DOCK -->
         <nav class="mobile-bottom-nav">
             <button class="bottom-tab-btn active" data-page="home">
                 <span class="b-icon">🏠</span>
@@ -154,11 +154,12 @@
         </main>
 
         <!-- =====================================================
-             MESSAGES PAGE
+             MESSAGES PAGE (RESPONSIVE CHAT)
         ===================================================== -->
         <main id="messagesPage" class="page">
             <section class="simple-page chat-page">
                 <div class="chat-layout">
+                    <!-- DESKTOP THREADS SIDEBAR -->
                     <div class="chat-sidebar">
                         <div class="chat-header">
                             <h2>Messages</h2>
@@ -169,12 +170,13 @@
                                 <div class="chat-item-details">
                                     <div class="chat-item-title" id="chatListingTitle">Select an item</div>
                                     <div class="chat-item-user" id="chatSellerSubtitle">Campus Community</div>
-                                    <div class="chat-item-preview">Tap any product to chat directly with its seller!</div>
+                                    <div class="chat-item-preview">Tap any product to chat with its seller!</div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
+                    <!-- FULL WIDTH CONVERSATION WINDOW -->
                     <div class="chat-window">
                         <div class="chat-window-header">
                             <div class="chat-item-img" id="chatHeaderImg">💬</div>
@@ -203,8 +205,8 @@
         ===================================================== -->
         <main id="sellPage" class="page">
             <section class="simple-page">
-                <span class="section-label">SELL AN ITEM</span>
-                <h1>Create a Listing</h1>
+            
+                <h1>SELL AN ITEM</h1>
                 
                 <div class="form-container">
                     <form id="createListingForm">
@@ -253,10 +255,7 @@
         </main>
 
         <!-- =====================================================
-             PROFILE & FAVORITES PAGE (GMAIL AUTH PROTECTED)
-        ===================================================== -->
-        <!-- =====================================================
-             PROFILE & FAVORITES PAGE (GMAIL AUTH PROTECTED)
+             PROFILE PAGE
         ===================================================== -->
         <main id="profilePage" class="page">
             <section class="simple-page">
@@ -317,7 +316,7 @@
             </div>
         </div>
 
-        <!-- FULL-SCREEN IMAGE LIGHTBOX -->
+        <!-- FULL-SCREEN LIGHTBOX -->
         <div id="imageLightbox" class="lightbox-overlay hidden">
             <span class="lightbox-close">&times;</span>
             <img id="lightboxImg" src="" alt="Zoomed view">
@@ -370,7 +369,7 @@
         </div>
 
         <!-- =====================================================
-             AUTH MODAL (GMAIL GATE)
+             AUTH MODAL (UNIVERSAL EMAIL + RESET + VERIFICATION)
         ===================================================== -->
         <div id="authModal" class="modal-overlay hidden">
             <div class="modal-card auth-modal-card">
@@ -379,25 +378,28 @@
                     <button id="closeAuthModal" class="modal-close-btn">&times;</button>
                 </div>
                 
-                <div class="auth-toggle-tabs">
+                <div class="auth-toggle-tabs" id="authTabsContainer">
                     <button type="button" class="auth-toggle-btn active" id="tabSignIn">Sign In</button>
                     <button type="button" class="auth-toggle-btn" id="tabSignUp">Register</button>
                 </div>
 
                 <form id="authForm">
                     <div class="modal-form-group">
-                        <label for="authEmail">Gmail Address</label>
-                        <input type="email" id="authEmail" placeholder="yourname@gmail.com" required autocomplete="email">
-                        <span class="input-hint">Must end with @gmail.com</span>
+                        <label for="authEmail">Email Address</label>
+                        <input type="email" id="authEmail" placeholder="yourname@domain.com" required autocomplete="email">
                     </div>
 
-                    <div class="modal-form-group">
+                    <div class="modal-form-group" id="passwordGroup">
                         <label for="authPassword">Password</label>
                         <input type="password" id="authPassword" placeholder="Minimum 6 characters" required minlength="6" autocomplete="current-password">
+                        <div class="auth-aux-links">
+                            <button type="button" id="forgotPasswordBtn" class="link-btn">Forgot Password?</button>
+                        </div>
                     </div>
 
                     <button type="submit" id="authSubmitBtn" class="primary-button modal-save-btn auth-submit-btn">Sign In</button>
                     <div id="authError" class="form-error hidden"></div>
+                    <div id="authSuccess" class="form-success hidden"></div>
                 </form>
             </div>
         </div>
