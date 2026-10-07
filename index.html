@@ -11,7 +11,7 @@
 </head>
 <body>
     <!-- =====================================================
-         LOADING SCREEN
+         POP LOADING SCREEN (NO CONNECTION BLOCKERS)
     ===================================================== -->
     <div id="loadingScreen" class="loading-screen">
         <div class="loading-content">
@@ -19,11 +19,7 @@
             <div class="loading-bazaar">BAZAAR</div>
             <div class="loading-tagline">CONNECT. TRADE. THRIVE.</div>
             <div class="loading-spinner"></div>
-            <p class="loading-text">Loading Your Marketplace....</p>
-            <div class="connection-status">
-                <span id="connectionDot"></span>
-                <span id="connectionText">Checking connection...</span>
-            </div>
+            <p class="loading-text">Loading Your Marketplace...</p>
         </div>
     </div>
 
@@ -45,13 +41,14 @@
 
             <nav class="nav-links">
                 <button class="nav-link active" data-page="home">Home</button>
-                <button class="nav-link" data-page="alerts">
-                    <span class="alert-symbol">♢</span> Alerts
+                <button class="nav-link" data-page="messages">
+                    <svg class="nav-icon-svg" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
+                    <span>Messages</span>
                 </button>
                 <button class="nav-link sell-nav" data-page="sell">
                     <span class="sell-plus">+</span><span>Sell</span>
                 </button>
-                <button class="nav-link profile-nav" data-page="profile">
+                <button class="nav-link profile-nav hidden" id="profileNavLink" data-page="profile">
                     <img src="profile.png" alt="Profile" onerror="this.style.display='none'">
                     <span>Profile</span>
                 </button>
@@ -86,46 +83,33 @@
                 </div>
             </section>
 
-            <!-- CATEGORIES (REAL IMAGES) -->
             <section class="section">
                 <div class="section-heading">
                     <div><h2>Browse Categories</h2></div>
                 </div>
                 <div class="category-grid">
                     <button class="category-card" data-category="Books">
-                        <div class="category-img-box">
-                            <img src="cat-books.jpg" alt="Books">
-                        </div>
+                        <div class="category-img-box"><img src="cat-books.jpg" alt="Books"></div>
                         <span>Books</span>
                     </button>
                     <button class="category-card" data-category="Electronics">
-                        <div class="category-img-box">
-                            <img src="cat-electronics.jpg" alt="Electronics">
-                        </div>
+                        <div class="category-img-box"><img src="cat-electronics.jpg" alt="Electronics"></div>
                         <span>Electronics</span>
                     </button>
                     <button class="category-card" data-category="Lab Supplies">
-                        <div class="category-img-box">
-                            <img src="cat-lab.png" alt="Lab Supplies">
-                        </div>
+                        <div class="category-img-box"><img src="cat-lab.png" alt="Lab Supplies"></div>
                         <span>Lab Supplies</span>
                     </button>
                     <button class="category-card" data-category="Accessories">
-                        <div class="category-img-box">
-                            <img src="cat-accessories.png" alt="Accessories">
-                        </div>
+                        <div class="category-img-box"><img src="cat-accessories.png" alt="Accessories"></div>
                         <span>Accessories</span>
                     </button>
                     <button class="category-card" data-category="Clothing">
-                        <div class="category-img-box">
-                            <img src="cat-clothing.png" alt="Clothing">
-                        </div>
+                        <div class="category-img-box"><img src="cat-clothing.png" alt="Clothing"></div>
                         <span>Clothing</span>
                     </button>
                     <button class="category-card" data-category="Others">
-                        <div class="category-img-box">
-                            <img src="cat-others.jpg" alt="Others">
-                        </div>
+                        <div class="category-img-box"><img src="cat-others.jpg" alt="Others"></div>
                         <span>Others</span>
                     </button>
                 </div>
@@ -137,44 +121,29 @@
                         <span class="section-label">MARKETPLACE</span>
                         <h2>Items Available</h2>
                     </div>
-                    <span id="resultCount" class="result-count">8 items</span>
+                    <span id="resultCount" class="result-count">0 items</span>
                 </div>
                 <div id="productGrid" class="product-grid"></div>
             </section>
         </main>
 
         <!-- =====================================================
-             ALERTS / CHAT INBOX PAGE
+             MESSAGES PAGE
         ===================================================== -->
-        <main id="alertsPage" class="page">
+        <main id="messagesPage" class="page">
             <section class="simple-page chat-page">
                 <div class="chat-layout">
                     <div class="chat-sidebar">
                         <div class="chat-header">
                             <h2>Messages</h2>
                         </div>
-                        <div class="chat-list">
+                        <div class="chat-list" id="chatThreadsList">
                             <div class="chat-list-item active-chat">
-                                <div class="chat-item-img">🧮</div>
+                                <div class="chat-item-img">📦</div>
                                 <div class="chat-item-details">
-                                    <div class="chat-item-title">Casio fx-991EX</div>
-                                    <div class="chat-item-user">Rahul M.</div>
-                                    <div class="chat-item-preview">Hey, does the LCD bleed affect the display?</div>
-                                </div>
-                                <div class="chat-item-meta">
-                                    <span class="chat-time">10m</span>
-                                    <span class="unread-badge">1</span>
-                                </div>
-                            </div>
-                            <div class="chat-list-item">
-                                <div class="chat-item-img">🔌</div>
-                                <div class="chat-item-details">
-                                    <div class="chat-item-title">ESP32 Kit + L298N</div>
-                                    <div class="chat-item-user">Sneha K.</div>
-                                    <div class="chat-item-preview">Yes, the motor driver is included.</div>
-                                </div>
-                                <div class="chat-item-meta">
-                                    <span class="chat-time">2h</span>
+                                    <div class="chat-item-title" id="chatListingTitle">Select an item</div>
+                                    <div class="chat-item-user" id="chatSellerSubtitle">Campus Community</div>
+                                    <div class="chat-item-preview">Tap any product to chat directly with its seller!</div>
                                 </div>
                             </div>
                         </div>
@@ -182,29 +151,21 @@
 
                     <div class="chat-window">
                         <div class="chat-window-header">
-                            <div class="chat-item-img">🧮</div>
+                            <div class="chat-item-img" id="chatHeaderImg">💬</div>
                             <div class="chat-window-info">
-                                <h3>Casio fx-991EX Calculator</h3>
-                                <span>₹300 • Chatting with Rahul M.</span>
+                                <h3 id="chatHeaderTitle">Campus Messages</h3>
+                                <span id="chatHeaderSub">Chat directly with student sellers</span>
                             </div>
                         </div>
-                        <div class="chat-messages">
+                        <div class="chat-messages" id="chatMessages">
                             <div class="message-bubble received">
-                                <p>Hi, is this calculator still available?</p>
-                                <span class="msg-time">10:42 AM</span>
-                            </div>
-                            <div class="message-bubble sent">
-                                <p>Yes, it is! Let me know if you want to check it out on campus.</p>
-                                <span class="msg-time">10:45 AM</span>
-                            </div>
-                            <div class="message-bubble received">
-                                <p>Awesome. Hey, does the LCD bleed affect the display when viewing matrices?</p>
-                                <span class="msg-time">10:51 AM</span>
+                                <p>Welcome to NMIT Bazaar Messages! Find an item you like and tap "Chat with Seller" to strike a deal.</p>
+                                <span class="msg-time">Now</span>
                             </div>
                         </div>
                         <div class="chat-input-area">
-                            <input type="text" placeholder="Type a message..." class="chat-input">
-                            <button class="chat-send-btn">➤</button>
+                            <input type="text" placeholder="Type a message..." class="chat-input" id="chatInput">
+                            <button class="chat-send-btn" id="chatSendBtn">➤</button>
                         </div>
                     </div>
                 </div>
@@ -212,11 +173,12 @@
         </main>
 
         <!-- =====================================================
-             SELL PAGE (FORM)
+             SELL PAGE
         ===================================================== -->
         <main id="sellPage" class="page">
             <section class="simple-page">
-                <h1>SELL AN ITEM</h1>
+                <span class="section-label">SELL AN ITEM</span>
+                <h1>Create a Listing</h1>
                 
                 <div class="form-container">
                     <form id="createListingForm">
@@ -254,7 +216,7 @@
             
                         <div class="form-group">
                             <label for="itemDescription">Description</label>
-                            <textarea id="itemDescription" rows="4" placeholder="Describe the condition, features, etc." required></textarea>
+                            <textarea id="itemDescription" rows="4" placeholder="Describe condition, contact details, etc." required></textarea>
                         </div>
             
                         <button type="submit" class="primary-button submit-btn">Publish Listing</button>
@@ -265,17 +227,17 @@
         </main>
 
         <!-- =====================================================
-             PROFILE & FAVORITES PAGE
+             PROFILE & FAVORITES PAGE (AUTH PROTECTED)
         ===================================================== -->
         <main id="profilePage" class="page">
             <section class="simple-page">
                 <div class="profile-header-card">
                     <img src="profile.png" alt="Profile" class="profile-large" onerror="this.style.display='none'">
                     <div class="profile-info">
-                        <h2 id="userNameDisplay">Prajwal</h2>
+                        <h2 id="userNameDisplay">Student</h2>
                         <p>
                             <span id="userProgramDisplay">Undergraduate - BTech</span> • 
-                            <span id="userDeptDisplay">Robotics & AI Engineering</span> • 
+                            <span id="userDeptDisplay">Engineering</span> • 
                             Batch of <span id="userYearDisplay">2024</span>
                         </p>
                         <button class="secondary-button edit-profile-btn" id="editProfileBtn">Edit Profile</button>
@@ -292,27 +254,45 @@
                 </div>
 
                 <div id="listingsTab" class="tab-content hidden">
-                    <div class="product-grid">
-                        <article class="product-card my-listing-item">
-                            <div class="sold-badge">SOLD</div>
-                            <div class="owner-controls">
-                                <button class="edit-btn" title="Edit Listing">✏️</button>
-                                <button class="delete-btn" title="Delete Listing">🗑️</button>
-                            </div>
-                            <div class="product-image">🧮</div>
-                            <div class="product-info">
-                                <div class="product-category">Electronics</div>
-                                <div class="product-name">Casio fx-991EX</div>
-                                <div class="price-action-row">
-                                    <span class="product-price">₹300</span>
-                                    <button class="sold-text-btn sold-btn">Mark Sold</button>
-                                </div>
-                            </div>
-                        </article>
-                    </div>
+                    <div class="product-grid" id="myListingsGrid"></div>
                 </div>
             </section>
         </main>
+
+        <!-- =====================================================
+             ITEM DETAIL & ZOOM MODAL
+        ===================================================== -->
+        <div id="productDetailModal" class="modal-overlay hidden">
+            <div class="modal-card product-modal-card">
+                <button id="closeDetailModal" class="modal-close-btn">&times;</button>
+                <div class="detail-image-box" id="detailImageWrapper" title="Click to zoom image">
+                    <img id="detailModalImg" src="" alt="Product">
+                    <span class="zoom-badge">🔍 Tap to Zoom</span>
+                </div>
+                <div class="detail-body">
+                    <div class="detail-category" id="detailCategory">Category</div>
+                    <h2 class="detail-title" id="detailTitle">Item Name</h2>
+                    <div class="detail-price" id="detailPrice">₹0</div>
+                    <div class="detail-seller-box">
+                        <div class="seller-meta">
+                            <span class="seller-label">Seller</span>
+                            <span class="seller-name" id="detailSeller">Student</span>
+                        </div>
+                        <button type="button" class="chat-with-seller-btn" id="modalChatSellerBtn">
+                            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
+                            <span>Chat with Seller</span>
+                        </button>
+                    </div>
+                    <p class="detail-description" id="detailDescription"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- FULL-SCREEN IMAGE LIGHTBOX -->
+        <div id="imageLightbox" class="lightbox-overlay hidden">
+            <span class="lightbox-close">&times;</span>
+            <img id="lightboxImg" src="" alt="Zoomed view">
+        </div>
 
         <!-- =====================================================
              EDIT PROFILE MODAL
@@ -393,9 +373,7 @@
             </div>
         </div>
 
-        <!-- =====================================================
-             FOOTER
-        ===================================================== -->
+        <!-- FOOTER -->
         <footer>
             <div class="footer-logo">
                 <img src="nmit-logo.png" alt="NMIT Logo" onerror="this.style.display='none'">
@@ -407,7 +385,7 @@
         </footer>
     </div>
 
-    <!-- Firebase Core, Firestore & Auth (v9 compat) -->
+    <!-- Firebase Core, Firestore & Auth -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>

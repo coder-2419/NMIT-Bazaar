@@ -1,5 +1,3 @@
-console.log("Script connected successfully! 🚀");
-
 /* =====================================================
    BACKEND CONFIGURATION (FIRESTORE + CLOUDINARY)
 ===================================================== */
@@ -12,58 +10,35 @@ const firebaseConfig = {
   appId: "1:1064459826757:web:c6b86ac236559b87d5552c"
 };
 
-// Initialize Firebase & Services
+// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 let currentUser = null;
 
-// Cloudinary Unsigned Settings
 const CLOUDINARY_CLOUD_NAME = "a9wphmyb"; 
 const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";             
 
-// In-memory array populated from Firestore
 let marketplaceItems = [];
+let activeViewingItem = null;
 
 /* =====================================================
-   ELEMENTS & CONNECTION STATUS
+   FAST POP LOADING SCREEN (NO NETWORK CHECKS)
 ===================================================== */
-const connectionDot = document.getElementById("connectionDot");
-const connectionText = document.getElementById("connectionText");
-
-function updateConnectionStatus() {
-    if(!connectionDot || !connectionText) return;
-    if (navigator.onLine) {
-        connectionDot.classList.remove("offline");
-        connectionDot.classList.add("online");
-        connectionText.textContent = "Online";
-    } else {
-        connectionDot.classList.remove("online");
-        connectionDot.classList.add("offline");
-        connectionText.textContent = "Offline";
-    }
-}
-updateConnectionStatus();
-window.addEventListener("online", updateConnectionStatus);
-window.addEventListener("offline", updateConnectionStatus);
-
-/* =====================================================
-   LOADING SCREEN (2-SECOND DELAY)
-===================================================== */
-document.addEventListener("DOMContentLoaded", () => {
-    updateConnectionStatus();
+window.addEventListener("DOMContentLoaded", () => {
     const loadingScreen = document.getElementById("loadingScreen");
     const app = document.getElementById("app");
     
-    if(loadingScreen && app) {
-        setTimeout(() => {
+    // Quick pop animation (1.2 seconds)
+    setTimeout(() => {
+        if (loadingScreen) {
             loadingScreen.classList.add("hide");
             setTimeout(() => {
                 loadingScreen.style.display = "none";
-                app.classList.remove("hidden");
-            }, 700);
-        }, 2000); 
-    }
+                if (app) app.classList.remove("hidden");
+            }, 300);
+        }
+    }, 1200);
 });
 
 /* =====================================================
@@ -80,57 +55,10 @@ db.collection("listings").orderBy("createdAt", "desc").onSnapshot((snapshot) => 
     
     renderProducts(marketplaceItems);
     renderFavorites();
+    renderMyListings();
 }, (error) => {
     console.error("Firestore sync error:", error);
 });
-
-/* =====================================================
-   FAVORITES SYNCHRONIZATION
-===================================================== */
-function renderFavorites() {
-    const favoritesTab = document.getElementById("favoritesTab");
-    if (!favoritesTab) return;
-
-    const favoriteItems = marketplaceItems.filter(item => item.isFavorite);
-    const container = favoritesTab.querySelector(".product-grid");
-    if (!container) return;
-
-    if (favoriteItems.length === 0) {
-        container.innerHTML = `
-            <p style="grid-column: 1/-1; text-align: center; color: #70807a; padding: 40px;">
-                You have no saved favorites.
-            </p>`;
-        return;
-    }
-
-    container.innerHTML = "";
-    favoriteItems.forEach(item => {
-        const imageContent = item.imageUrl
-            ? `<img src="${item.imageUrl}" alt="${item.name}">`
-            : `<div style="font-size: 48px;">${item.icon || "📦"}</div>`;
-
-        const card = document.createElement("article");
-        card.className = "product-card";
-        card.innerHTML = `
-            <div class="favorite-icon-active" data-id="${item.id}" title="Remove from favorites">❤️</div>
-            <div class="product-image">${imageContent}</div>
-            <div class="product-info">
-                <div class="product-category">${item.category}</div>
-                <div class="product-name">${item.name}</div>
-                <span class="product-price">₹${item.price}</span>
-            </div>`;
-        container.appendChild(card);
-    });
-}
-
-function toggleFavorite(itemId) {
-    const item = marketplaceItems.find(i => i.id === itemId);
-    if (!item) return;
-
-    db.collection("listings").doc(itemId).update({
-        isFavorite: !item.isFavorite
-    }).catch(err => console.error("Error updating favorite:", err));
-}
 
 /* =====================================================
    RENDER PRODUCTS
@@ -145,27 +73,25 @@ function renderProducts(items) {
 
     if (items.length === 0) {
         productGrid.innerHTML = `
-            <div class="empty-state" style="grid-column:1/-1">
-                <div class="empty-icon">🔎</div>
-                <h3>No items found</h3>
-                <p>Try searching for another item or post a new listing!</p>
+            <div class="empty-state" style="grid-column:1/-1; text-align:center; padding:40px; color:#70807a;">
+                <h3>No items available yet</h3>
+                <p>Be the first one to post a listing!</p>
             </div>`;
         return;
     }
 
     items.forEach(item => {
         const card = document.createElement("article");
-        card.className = `product-card ${item.isSold ? 'sold-out' : ''}`;
-        
+        card.className = "product-card";
+        card.setAttribute("data-id", item.id);
+
         const imageContent = item.imageUrl
             ? `<img src="${item.imageUrl}" alt="${item.name}">`
-            : `<div style="font-size: 48px;">${item.icon || "📦"}</div>`;
+            : `<div style="font-size: 48px;">📦</div>`;
 
         card.innerHTML = `
-            <button class="favorite-toggle-btn ${item.isFavorite ? 'is-favorite' : ''}" data-id="${item.id}" aria-label="Add to favorites">
-                <svg viewBox="0 0 24 24">
-                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                </svg>
+            <button class="favorite-toggle-btn ${item.isFavorite ? 'is-favorite' : ''}" data-id="${item.id}" aria-label="Favorite">
+                <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
             </button>
             <div class="product-image">${imageContent}</div>
             <div class="product-info">
@@ -177,19 +103,303 @@ function renderProducts(items) {
     });
 }
 
+// Card Click: Open Details or Toggle Favorite
 if (productGrid) {
     productGrid.addEventListener("click", (e) => {
         const favoriteBtn = e.target.closest(".favorite-toggle-btn");
         if (favoriteBtn) {
             e.stopPropagation();
-            const itemId = favoriteBtn.getAttribute("data-id");
+            toggleFavorite(favoriteBtn.getAttribute("data-id"));
+            return;
+        }
+
+        const card = e.target.closest(".product-card");
+        if (card) {
+            const itemId = card.getAttribute("data-id");
+            openProductDetailModal(itemId);
+        }
+    });
+}
+
+/* =====================================================
+   PRODUCT DETAIL & ZOOM LIGHTBOX
+===================================================== */
+const productDetailModal = document.getElementById("productDetailModal");
+const closeDetailModal = document.getElementById("closeDetailModal");
+const detailModalImg = document.getElementById("detailModalImg");
+const detailImageWrapper = document.getElementById("detailImageWrapper");
+const detailCategory = document.getElementById("detailCategory");
+const detailTitle = document.getElementById("detailTitle");
+const detailPrice = document.getElementById("detailPrice");
+const detailSeller = document.getElementById("detailSeller");
+const detailDescription = document.getElementById("detailDescription");
+const modalChatSellerBtn = document.getElementById("modalChatSellerBtn");
+
+const imageLightbox = document.getElementById("imageLightbox");
+const lightboxImg = document.getElementById("lightboxImg");
+
+function openProductDetailModal(itemId) {
+    const item = marketplaceItems.find(i => i.id === itemId);
+    if (!item || !productDetailModal) return;
+
+    activeViewingItem = item;
+    detailModalImg.src = item.imageUrl || "nmit-logo.png";
+    detailCategory.textContent = item.category;
+    detailTitle.textContent = item.name;
+    detailPrice.textContent = `₹${item.price}`;
+    
+    // Display seller name (fallback to email prefix)
+    const sellerName = item.sellerName || (item.sellerEmail ? item.sellerEmail.split("@")[0] : "Campus Student");
+    detailSeller.textContent = sellerName;
+    detailDescription.textContent = item.description || "No additional description provided.";
+
+    productDetailModal.classList.remove("hidden");
+}
+
+function closeDetailModalHandler() {
+    if (productDetailModal) productDetailModal.classList.add("hidden");
+}
+
+if (closeDetailModal) closeDetailModal.addEventListener("click", closeDetailModalHandler);
+if (productDetailModal) {
+    productDetailModal.addEventListener("click", (e) => {
+        if (e.target === productDetailModal) closeDetailModalHandler();
+    });
+}
+
+// Open Full-screen Zoom Lightbox
+if (detailImageWrapper && imageLightbox && lightboxImg) {
+    detailImageWrapper.addEventListener("click", () => {
+        if (detailModalImg.src) {
+            lightboxImg.src = detailModalImg.src;
+            imageLightbox.classList.remove("hidden");
+        }
+    });
+
+    imageLightbox.addEventListener("click", () => {
+        imageLightbox.classList.add("hidden");
+    });
+}
+
+// Direct "Chat with Seller" from Detail Modal
+if (modalChatSellerBtn) {
+    modalChatSellerBtn.addEventListener("click", () => {
+        if (!activeViewingItem) return;
+        closeDetailModalHandler();
+        startChatWithItem(activeViewingItem);
+    });
+}
+
+/* =====================================================
+   FAVORITES LOGIC
+===================================================== */
+function toggleFavorite(itemId) {
+    const item = marketplaceItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    db.collection("listings").doc(itemId).update({
+        isFavorite: !item.isFavorite
+    }).catch(err => console.error("Error updating favorite:", err));
+}
+
+function renderFavorites() {
+    const favoritesTab = document.getElementById("favoritesTab");
+    if (!favoritesTab) return;
+
+    const favoriteItems = marketplaceItems.filter(item => item.isFavorite);
+    const container = favoritesTab.querySelector(".product-grid");
+    if (!container) return;
+
+    if (favoriteItems.length === 0) {
+        container.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: #70807a; padding: 40px;">No saved favorites yet.</p>`;
+        return;
+    }
+
+    container.innerHTML = "";
+    favoriteItems.forEach(item => {
+        const imageContent = item.imageUrl
+            ? `<img src="${item.imageUrl}" alt="${item.name}">`
+            : `<div style="font-size: 48px;">📦</div>`;
+
+        const card = document.createElement("article");
+        card.className = "product-card";
+        card.innerHTML = `
+            <div class="favorite-icon-active" data-id="${item.id}" title="Remove favorite">❤️</div>
+            <div class="product-image">${imageContent}</div>
+            <div class="product-info">
+                <div class="product-category">${item.category}</div>
+                <div class="product-name">${item.name}</div>
+                <span class="product-price">₹${item.price}</span>
+            </div>`;
+        container.appendChild(card);
+    });
+}
+
+const favoritesTab = document.getElementById("favoritesTab");
+if (favoritesTab) {
+    favoritesTab.addEventListener("click", (e) => {
+        const removeBtn = e.target.closest(".favorite-icon-active");
+        if (removeBtn) {
+            const itemId = removeBtn.getAttribute("data-id");
             toggleFavorite(itemId);
         }
     });
 }
 
 /* =====================================================
-   SEARCH & SORTING
+   MY LISTINGS (PROFILE)
+===================================================== */
+function renderMyListings() {
+    const myListingsGrid = document.getElementById("myListingsGrid");
+    if (!myListingsGrid) return;
+
+    if (!currentUser) {
+        myListingsGrid.innerHTML = `<p style="grid-column: 1/-1; text-align:center; color:#70807a; padding:40px;">Please sign in to view your listings.</p>`;
+        return;
+    }
+
+    const myItems = marketplaceItems.filter(i => i.sellerUid === currentUser.uid);
+    if (myItems.length === 0) {
+        myListingsGrid.innerHTML = `<p style="grid-column: 1/-1; text-align:center; color:#70807a; padding:40px;">You haven't listed any items yet.</p>`;
+        return;
+    }
+
+    myListingsGrid.innerHTML = "";
+    myItems.forEach(item => {
+        const card = document.createElement("article");
+        card.className = "product-card";
+        card.innerHTML = `
+            <div class="product-image"><img src="${item.imageUrl || ''}" alt=""></div>
+            <div class="product-info">
+                <div class="product-category">${item.category}</div>
+                <div class="product-name">${item.name}</div>
+                <span class="product-price">₹${item.price}</span>
+            </div>`;
+        myListingsGrid.appendChild(card);
+    });
+}
+
+/* =====================================================
+   MESSAGES & DIRECT CHAT REDIRECT
+===================================================== */
+const chatListingTitle = document.getElementById("chatListingTitle");
+const chatSellerSubtitle = document.getElementById("chatSellerSubtitle");
+const chatHeaderTitle = document.getElementById("chatHeaderTitle");
+const chatHeaderSub = document.getElementById("chatHeaderSub");
+const chatMessages = document.getElementById("chatMessages");
+const chatInput = document.getElementById("chatInput");
+const chatSendBtn = document.getElementById("chatSendBtn");
+
+function startChatWithItem(item) {
+    // Switch to Messages tab
+    const messagesNav = document.querySelector('[data-page="messages"]');
+    if (messagesNav) messagesNav.click();
+
+    const sellerName = item.sellerName || (item.sellerEmail ? item.sellerEmail.split("@")[0] : "Student Seller");
+
+    if (chatListingTitle) chatListingTitle.textContent = item.name;
+    if (chatSellerSubtitle) chatSellerSubtitle.textContent = sellerName;
+    if (chatHeaderTitle) chatHeaderTitle.textContent = item.name;
+    if (chatHeaderSub) chatHeaderSub.textContent = `₹${item.price} • Chatting with ${sellerName}`;
+
+    if (chatMessages) {
+        chatMessages.innerHTML = `
+            <div class="message-bubble received">
+                <p>Hi! I'm interested in buying your <strong>${item.name}</strong> for ₹${item.price}. Is it still available on campus?</p>
+                <span class="msg-time">Just now</span>
+            </div>
+        `;
+    }
+}
+
+function sendChatMessage() {
+    if (!chatInput || !chatMessages) return;
+    const text = chatInput.value.trim();
+    if (!text) return;
+
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const bubble = document.createElement("div");
+    bubble.className = "message-bubble sent";
+    bubble.innerHTML = `<p>${text}</p><span class="msg-time">${time}</span>`;
+    
+    chatMessages.appendChild(bubble);
+    chatInput.value = "";
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+if (chatSendBtn) chatSendBtn.addEventListener("click", sendChatMessage);
+if (chatInput) {
+    chatInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            sendChatMessage();
+        }
+    });
+}
+
+/* =====================================================
+   PAGE NAVIGATION & ROUTE GATING
+===================================================== */
+const navLinks = document.querySelectorAll(".nav-link");
+const pages = {
+    home: document.getElementById("homePage"),
+    messages: document.getElementById("messagesPage"),
+    sell: document.getElementById("sellPage"),
+    profile: document.getElementById("profilePage")
+};
+
+navLinks.forEach(button => {
+    button.addEventListener("click", () => {
+        const target = button.dataset.page;
+        if (!target || !pages[target]) return;
+
+        // Gate sell and profile tabs
+        if ((target === "sell" || target === "profile") && !currentUser) {
+            alert("Please sign in with your Gmail account first.");
+            openAuthModal(false);
+            return;
+        }
+
+        navLinks.forEach(btn => btn.classList.remove("active"));
+        button.classList.add("active");
+        
+        Object.values(pages).forEach(p => {
+            if (p) p.classList.remove("active-page");
+        });
+        pages[target].classList.add("active-page");
+
+        if (target === "profile") {
+            renderFavorites();
+            renderMyListings();
+        }
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+});
+
+/* =====================================================
+   CATEGORIES FILTER
+===================================================== */
+const categoryButtons = document.querySelectorAll(".category-card");
+categoryButtons.forEach(button => {
+    button.addEventListener("click", () => {
+        const category = button.dataset.category;
+        const filtered = marketplaceItems.filter(item => item.category === category);
+        
+        Object.values(pages).forEach(p => p && p.classList.remove("active-page"));
+        if (pages.home) pages.home.classList.add("active-page");
+        
+        navLinks.forEach(btn => btn.classList.remove("active"));
+        const homeBtn = document.querySelector('[data-page="home"]');
+        if (homeBtn) homeBtn.classList.add("active");
+        
+        renderProducts(filtered);
+        const marketSection = document.querySelector(".marketplace-section");
+        if (marketSection) marketSection.scrollIntoView({ behavior: "smooth" });
+    });
+});
+
+/* =====================================================
+   SEARCH LOGIC
 ===================================================== */
 const searchInput = document.getElementById("searchInput");
 const searchButton = document.getElementById("searchButton");
@@ -197,7 +407,7 @@ const searchSuggestions = document.getElementById("searchSuggestions");
 
 function performSearch(query) {
     if (!query) {
-        if(searchSuggestions) searchSuggestions.classList.add("hidden");
+        if (searchSuggestions) searchSuggestions.classList.add("hidden");
         renderProducts(marketplaceItems);
         return;
     }
@@ -215,140 +425,22 @@ function performSearch(query) {
     });
 
     renderProducts(matches);
-    showSuggestions(matches);
 }
 
-if (searchInput && searchButton) {
-    searchInput.addEventListener("input", function () {
+if (searchInput) {
+    searchInput.addEventListener("input", function() {
         performSearch(this.value.trim().toLowerCase());
     });
-
-    searchButton.addEventListener("click", function (e) {
+}
+if (searchButton) {
+    searchButton.addEventListener("click", (e) => {
         e.preventDefault();
-        const query = searchInput.value.trim().toLowerCase();
-        performSearch(query);
-        if(searchSuggestions) searchSuggestions.classList.add("hidden");
-        const marketSection = document.querySelector(".marketplace-section");
-        if (marketSection) marketSection.scrollIntoView({ behavior: "smooth" });
-    });
-
-    searchInput.addEventListener("keypress", function (e) {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            searchButton.click();
-        }
+        performSearch(searchInput.value.trim().toLowerCase());
     });
 }
 
-function showSuggestions(items) {
-    if(!searchSuggestions) return;
-    searchSuggestions.innerHTML = "";
-    if (items.length === 0) {
-        searchSuggestions.innerHTML = `
-            <div class="suggestion-item">
-                <div class="suggestion-icon">🔎</div>
-                <div>
-                    <div class="suggestion-name">No matching items</div>
-                    <div class="suggestion-category">Try another search</div>
-                </div>
-            </div>`;
-        searchSuggestions.classList.remove("hidden");
-        return;
-    }
-
-    items.slice(0, 5).forEach(item => {
-        const suggestion = document.createElement("div");
-        suggestion.className = "suggestion-item";
-        suggestion.innerHTML = `
-            <div class="suggestion-icon">📦</div>
-            <div>
-                <div class="suggestion-name">${item.name}</div>
-                <div class="suggestion-category">${item.category} • ₹${item.price}</div>
-            </div>`;
-        
-        suggestion.addEventListener("click", () => {
-            searchInput.value = item.name;
-            searchSuggestions.classList.add("hidden");
-            renderProducts([item]);
-        });
-        searchSuggestions.appendChild(suggestion);
-    });
-    searchSuggestions.classList.remove("hidden");
-}
-
-document.addEventListener("click", event => {
-    if (searchSuggestions && !event.target.closest(".search-wrapper")) {
-        searchSuggestions.classList.add("hidden");
-    }
-});
-
 /* =====================================================
-   PAGE NAVIGATION
-===================================================== */
-const navLinks = document.querySelectorAll(".nav-link");
-const pages = {
-    home: document.getElementById("homePage"),
-    alerts: document.getElementById("alertsPage"),
-    sell: document.getElementById("sellPage"),
-    profile: document.getElementById("profilePage")
-};
-
-navLinks.forEach(button => {
-    button.addEventListener("click", () => {
-        const target = button.dataset.page;
-        if (!target || !pages[target]) return;
-
-        // Gate the Sell tab behind authentication
-        if (target === "sell" && !currentUser) {
-            alert("Please sign in with your Gmail account to sell items.");
-            openAuthModal(false);
-            return;
-        }
-
-        navLinks.forEach(btn => btn.classList.remove("active"));
-        button.classList.add("active");
-        
-        Object.values(pages).forEach(page => {
-            if(page) page.classList.remove("active-page");
-        });
-        
-        pages[target].classList.add("active-page");
-        
-        if (target === "profile") {
-            renderFavorites();
-        }
-
-        window.scrollTo({ top: 0, behavior: "smooth" });
-    });
-});
-
-/* =====================================================
-   CATEGORY FILTER
-===================================================== */
-const categoryButtons = document.querySelectorAll(".category-card");
-categoryButtons.forEach(button => {
-    button.addEventListener("click", () => {
-        const category = button.dataset.category;
-        const filtered = marketplaceItems.filter(item => item.category === category);
-        
-        Object.values(pages).forEach(page => {
-            if(page) page.classList.remove("active-page");
-        });
-        if(pages.home) pages.home.classList.add("active-page");
-        
-        navLinks.forEach(btn => btn.classList.remove("active"));
-        const homeBtn = document.querySelector('[data-page="home"]');
-        if(homeBtn) homeBtn.classList.add("active");
-        
-        renderProducts(filtered);
-        
-        const marketSection = document.querySelector(".marketplace-section");
-        if(marketSection) marketSection.scrollIntoView({ behavior: "smooth" });
-    });
-});
-
-/* =====================================================
-   CREATE LISTING FORM HANDLING (CLOUDINARY + FIRESTORE)
+   CREATE LISTING (CLOUDINARY + FIRESTORE)
 ===================================================== */
 const createListingForm = document.getElementById("createListingForm");
 const itemImageInput = document.getElementById("itemImage");
@@ -356,22 +448,21 @@ const triggerImageBtn = document.getElementById("triggerImageBtn");
 const imagePreview = document.getElementById("imagePreview");
 const formError = document.getElementById("formError");
 
-if(triggerImageBtn && itemImageInput) {
+if (triggerImageBtn && itemImageInput) {
     triggerImageBtn.addEventListener("click", () => itemImageInput.click());
-    
     itemImageInput.addEventListener("change", function(e) {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = function(e) {
-                if(imagePreview) imagePreview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
-            }
+            reader.onload = (e) => {
+                if (imagePreview) imagePreview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+            };
             reader.readAsDataURL(file);
         }
     });
 }
 
-if(createListingForm) {
+if (createListingForm) {
     createListingForm.addEventListener("submit", async function(e) {
         e.preventDefault();
 
@@ -380,7 +471,7 @@ if(createListingForm) {
             openAuthModal(false);
             return;
         }
-        
+
         const name = document.getElementById("itemName").value.trim();
         const price = parseFloat(document.getElementById("itemPrice").value);
         const category = document.getElementById("itemCategory").value;
@@ -388,23 +479,18 @@ if(createListingForm) {
         const imageFile = itemImageInput.files[0];
 
         if (!name || !price || !category || !desc || !imageFile) {
-            showError("Please fill out all fields and upload an image.");
+            if (formError) {
+                formError.textContent = "Please fill out all fields and upload an image.";
+                formError.classList.remove("hidden");
+            }
             return;
         }
-
-        if (price <= 0) {
-            showError("Price must be greater than 0.");
-            return;
-        }
-
-        if(formError) formError.classList.add("hidden");
 
         const submitBtn = createListingForm.querySelector(".submit-btn");
         submitBtn.disabled = true;
         submitBtn.textContent = "Uploading image...";
 
         try {
-            // Upload to Cloudinary Free CDN
             const formData = new FormData();
             formData.append("file", imageFile);
             formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
@@ -414,41 +500,37 @@ if(createListingForm) {
                 { method: "POST", body: formData }
             );
 
-            if (!uploadRes.ok) {
-                const errData = await uploadRes.json();
-                throw new Error(errData.error?.message || "Image upload failed");
-            }
-
+            if (!uploadRes.ok) throw new Error("Image upload failed.");
             const uploadData = await uploadRes.json();
-            const imageUrl = uploadData.secure_url;
 
             submitBtn.textContent = "Saving listing...";
 
-            // Save document into Firestore
             await db.collection("listings").add({
                 name: name,
                 price: price,
                 category: category,
                 description: desc,
-                imageUrl: imageUrl,
+                imageUrl: uploadData.secure_url,
+                sellerName: currentUser.displayName || currentUser.email.split("@")[0],
                 sellerEmail: currentUser.email,
                 sellerUid: currentUser.uid,
                 isFavorite: false,
-                isSold: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
             alert("Success! Your item is live on NMIT Bazaar.");
-            
             createListingForm.reset();
-            if(imagePreview) imagePreview.innerHTML = `<span>+ Upload Image</span>`;
+            if (imagePreview) imagePreview.innerHTML = `<span>+ Upload Image</span>`;
             
             const homeNav = document.querySelector('[data-page="home"]');
-            if(homeNav) homeNav.click();
+            if (homeNav) homeNav.click();
 
         } catch (err) {
-            console.error("Listing submission error:", err);
-            showError(err.message || "Failed to publish listing.");
+            console.error(err);
+            if (formError) {
+                formError.textContent = err.message || "Failed to publish listing.";
+                formError.classList.remove("hidden");
+            }
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = "Publish Listing";
@@ -456,217 +538,10 @@ if(createListingForm) {
     });
 }
 
-function showError(message) {
-    if(formError) {
-        formError.textContent = message;
-        formError.classList.remove("hidden");
-    }
-}
-
 /* =====================================================
-   PROFILE TABS LOGIC
+   GMAIL AUTHENTICATION & PROFILE TAB VISIBILITY
 ===================================================== */
-const profileTabs = document.querySelectorAll(".profile-tab");
-const tabContents = document.querySelectorAll(".tab-content");
-
-profileTabs.forEach(tab => {
-    tab.addEventListener("click", () => {
-        profileTabs.forEach(t => t.classList.remove("active"));
-        tabContents.forEach(c => {
-            c.classList.remove("active-tab");
-            c.classList.add("hidden");
-        });
-
-        tab.classList.add("active");
-
-        const targetId = tab.getAttribute("data-tab") + "Tab";
-        const targetContent = document.getElementById(targetId);
-        if(targetContent) {
-            targetContent.classList.remove("hidden");
-            targetContent.classList.add("active-tab");
-        }
-        
-        if (tab.getAttribute("data-tab") === "favorites") {
-            renderFavorites();
-        }
-    });
-});
-
-/* =====================================================
-   CHAT REPLY LOGIC
-===================================================== */
-const chatInput = document.querySelector(".chat-input");
-const chatSendBtn = document.querySelector(".chat-send-btn");
-const chatMessages = document.querySelector(".chat-messages");
-
-function sendMessage() {
-    if(!chatInput || !chatMessages) return;
-    const text = chatInput.value.trim();
-    if (!text) return;
-
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    const messageHTML = `
-        <div class="message-bubble sent">
-            <p>${text}</p>
-            <span class="msg-time">${time}</span>
-        </div>
-    `;
-    
-    chatMessages.insertAdjacentHTML("beforeend", messageHTML);
-    chatInput.value = "";
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-if (chatSendBtn && chatInput && chatMessages) {
-    chatSendBtn.addEventListener("click", sendMessage);
-    chatInput.addEventListener("keypress", function(e) {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
-}
-
-/* =====================================================
-   EDIT PROFILE MODAL
-===================================================== */
-const editProfileBtn = document.getElementById("editProfileBtn");
-const editProfileModal = document.getElementById("editProfileModal");
-const closeProfileModal = document.getElementById("closeProfileModal");
-const cancelProfileModal = document.getElementById("cancelProfileModal");
-const editProfileForm = document.getElementById("editProfileForm");
-
-const userNameDisplay = document.getElementById("userNameDisplay");
-const userProgramDisplay = document.getElementById("userProgramDisplay");
-const userDeptDisplay = document.getElementById("userDeptDisplay");
-const userYearDisplay = document.getElementById("userYearDisplay");
-
-const editFullName = document.getElementById("editFullName");
-const editDepartment = document.getElementById("editDepartment");
-const editJoiningYear = document.getElementById("editJoiningYear");
-const selectedProgramInput = document.getElementById("selectedProgramInput");
-const programPills = document.querySelectorAll(".program-pill-btn");
-
-const currentYear = new Date().getFullYear();
-if (editJoiningYear) {
-    editJoiningYear.max = currentYear;
-}
-
-programPills.forEach(pill => {
-    pill.addEventListener("click", () => {
-        programPills.forEach(p => p.classList.remove("active"));
-        pill.classList.add("active");
-        if (selectedProgramInput) {
-            selectedProgramInput.value = pill.getAttribute("data-program");
-        }
-    });
-});
-
-function openProfileModal() {
-    if (!editProfileModal) return;
-    
-    editJoiningYear.max = new Date().getFullYear();
-
-    editFullName.value = userNameDisplay.textContent.trim();
-    editDepartment.value = userDeptDisplay ? userDeptDisplay.textContent.trim() : "";
-    editJoiningYear.value = userYearDisplay.textContent.trim();
-
-    const currentProgram = userProgramDisplay ? userProgramDisplay.textContent.trim() : "Undergraduate - BTech";
-    if (selectedProgramInput) {
-        selectedProgramInput.value = currentProgram;
-    }
-
-    programPills.forEach(pill => {
-        if (pill.getAttribute("data-program") === currentProgram) {
-            pill.classList.add("active");
-            pill.scrollIntoView({ block: "nearest", behavior: "smooth" });
-        } else {
-            pill.classList.remove("active");
-        }
-    });
-
-    editProfileModal.classList.remove("hidden");
-}
-
-function closeProfileModalHandler() {
-    if (!editProfileModal) return;
-    editProfileModal.classList.add("hidden");
-}
-
-if (editProfileBtn) editProfileBtn.addEventListener("click", openProfileModal);
-if (closeProfileModal) closeProfileModal.addEventListener("click", closeProfileModalHandler);
-if (cancelProfileModal) cancelProfileModal.addEventListener("click", closeProfileModalHandler);
-
-if (editProfileModal) {
-    editProfileModal.addEventListener("click", (e) => {
-        if (e.target === editProfileModal) {
-            closeProfileModalHandler();
-        }
-    });
-}
-
-if (editProfileForm) {
-    editProfileForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const newName = editFullName.value.trim();
-        const newDept = editDepartment.value.trim();
-        const enteredYear = parseInt(editJoiningYear.value, 10);
-        const thisYear = new Date().getFullYear();
-        const newProgram = selectedProgramInput ? selectedProgramInput.value.trim() : "Undergraduate - BTech";
-
-        if (enteredYear > thisYear) {
-            alert(`Joining year cannot be greater than the current year (${thisYear}).`);
-            editJoiningYear.focus();
-            return;
-        }
-
-        if (newName && newDept && enteredYear && newProgram) {
-            userNameDisplay.textContent = newName;
-            if (userProgramDisplay) userProgramDisplay.textContent = newProgram;
-            if (userDeptDisplay) userDeptDisplay.textContent = newDept;
-            userYearDisplay.textContent = enteredYear;
-            closeProfileModalHandler();
-        }
-    });
-}
-
-const favoritesTab = document.getElementById("favoritesTab");
-if (favoritesTab) {
-    favoritesTab.addEventListener("click", (e) => {
-        const removeBtn = e.target.closest(".favorite-icon-active");
-        if (removeBtn) {
-            const itemId = removeBtn.getAttribute("data-id");
-            if (confirm("Remove this item from your favorites?")) {
-                toggleFavorite(itemId);
-            }
-        }
-    });
-}
-
-const listingsTab = document.getElementById("listingsTab");
-if (listingsTab) {
-    listingsTab.addEventListener("click", (e) => {
-        const card = e.target.closest(".product-card");
-        if (!card) return;
-
-        if (e.target.closest(".delete-btn")) {
-            if (confirm("Are you sure you want to permanently delete this listing?")) {
-                card.remove();
-            }
-        } else if (e.target.closest(".sold-btn")) {
-            card.classList.toggle("sold-out");
-        } else if (e.target.closest(".edit-btn")) {
-            alert("This will open the 'Edit Listing' form populated with this item's data.");
-        }
-    });
-}
-
-/* =====================================================
-   FIREBASE AUTHENTICATION (GMAIL GATE)
-===================================================== */
-let isSignUpMode = false;
-
+const profileNavLink = document.getElementById("profileNavLink");
 const authBtn = document.getElementById("authBtn");
 const authModal = document.getElementById("authModal");
 const closeAuthModal = document.getElementById("closeAuthModal");
@@ -678,56 +553,50 @@ const authModalTitle = document.getElementById("authModalTitle");
 const authSubmitBtn = document.getElementById("authSubmitBtn");
 const tabSignIn = document.getElementById("tabSignIn");
 const tabSignUp = document.getElementById("tabSignUp");
+let isSignUpMode = false;
 
 auth.onAuthStateChanged((user) => {
     currentUser = user;
     if (user) {
         if (authBtn) authBtn.textContent = "Sign Out";
-        if (userNameDisplay) userNameDisplay.textContent = user.displayName || user.email.split("@")[0];
+        if (profileNavLink) profileNavLink.classList.remove("hidden"); // Reveal Profile Tab
+        const nameDisplay = document.getElementById("userNameDisplay");
+        if (nameDisplay) nameDisplay.textContent = user.displayName || user.email.split("@")[0];
     } else {
         if (authBtn) authBtn.textContent = "Sign In";
+        if (profileNavLink) profileNavLink.classList.add("hidden"); // Hide Profile Tab
     }
 });
 
 function openAuthModal(signup = false) {
     if (!authModal) return;
-    setAuthMode(signup);
+    isSignUpMode = signup;
+    authModalTitle.textContent = isSignUpMode ? "Create Account" : "Sign In";
+    authSubmitBtn.textContent = isSignUpMode ? "Register" : "Sign In";
+    tabSignUp.classList.toggle("active", isSignUpMode);
+    tabSignIn.classList.toggle("active", !isSignUpMode);
     if (authError) authError.classList.add("hidden");
     authModal.classList.remove("hidden");
 }
 
 function closeAuthModalHandler() {
-    if (!authModal) return;
-    authModal.classList.add("hidden");
+    if (authModal) authModal.classList.add("hidden");
     if (authForm) authForm.reset();
 }
 
-function setAuthMode(signup) {
-    isSignUpMode = signup;
-    if (isSignUpMode) {
-        authModalTitle.textContent = "Create Account";
-        authSubmitBtn.textContent = "Register";
-        tabSignUp.classList.add("active");
-        tabSignIn.classList.remove("active");
-    } else {
-        authModalTitle.textContent = "Sign In";
-        authSubmitBtn.textContent = "Sign In";
-        tabSignIn.classList.add("active");
-        tabSignUp.classList.remove("active");
-    }
-}
-
-if (tabSignIn) tabSignIn.addEventListener("click", () => setAuthMode(false));
-if (tabSignUp) tabSignUp.addEventListener("click", () => setAuthMode(true));
+if (tabSignIn) tabSignIn.addEventListener("click", () => openAuthModal(false));
+if (tabSignUp) tabSignUp.addEventListener("click", () => openAuthModal(true));
+if (closeAuthModal) closeAuthModal.addEventListener("click", closeAuthModalHandler);
 
 if (authBtn) {
     authBtn.addEventListener("click", (e) => {
         e.preventDefault();
-        e.stopPropagation();
-        
         if (currentUser) {
             if (confirm("Do you want to sign out?")) {
-                auth.signOut();
+                auth.signOut().then(() => {
+                    const homeNav = document.querySelector('[data-page="home"]');
+                    if (homeNav) homeNav.click();
+                });
             }
         } else {
             openAuthModal(false);
@@ -735,6 +604,100 @@ if (authBtn) {
     });
 }
 
-if (closeAuthModal) closeAuthModal.addEventListener("click", closeAuthModalHandler);
-if (authModal) {
-    authModal
+if (authForm) {
+    authForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = authEmail.value.trim().toLowerCase();
+        const password = authPassword.value;
+
+        if (!email.endsWith("@gmail.com")) {
+            authError.textContent = "Access restricted: Please use a valid @gmail.com address.";
+            authError.classList.remove("hidden");
+            return;
+        }
+
+        authError.classList.add("hidden");
+        authSubmitBtn.disabled = true;
+
+        try {
+            if (isSignUpMode) {
+                await auth.createUserWithEmailAndPassword(email, password);
+                alert("Account created successfully!");
+            } else {
+                await auth.signInWithEmailAndPassword(email, password);
+            }
+            closeAuthModalHandler();
+        } catch (err) {
+            authError.textContent = err.message;
+            authError.classList.remove("hidden");
+        } finally {
+            authSubmitBtn.disabled = false;
+        }
+    });
+}
+
+/* =====================================================
+   PROFILE EDITING MODAL
+===================================================== */
+const editProfileBtn = document.getElementById("editProfileBtn");
+const editProfileModal = document.getElementById("editProfileModal");
+const closeProfileModal = document.getElementById("closeProfileModal");
+const cancelProfileModal = document.getElementById("cancelProfileModal");
+const editProfileForm = document.getElementById("editProfileForm");
+const editJoiningYear = document.getElementById("editJoiningYear");
+const programPills = document.querySelectorAll(".program-pill-btn");
+const selectedProgramInput = document.getElementById("selectedProgramInput");
+
+if (editJoiningYear) editJoiningYear.max = new Date().getFullYear();
+
+programPills.forEach(pill => {
+    pill.addEventListener("click", () => {
+        programPills.forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+        if (selectedProgramInput) selectedProgramInput.value = pill.getAttribute("data-program");
+    });
+});
+
+if (editProfileBtn) {
+    editProfileBtn.addEventListener("click", () => {
+        if (!editProfileModal) return;
+        editProfileModal.classList.remove("hidden");
+    });
+}
+if (closeProfileModal) closeProfileModal.addEventListener("click", () => editProfileModal.classList.add("hidden"));
+if (cancelProfileModal) cancelProfileModal.addEventListener("click", () => editProfileModal.classList.add("hidden"));
+
+if (editProfileForm) {
+    editProfileForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const newName = document.getElementById("editFullName").value.trim();
+        const newDept = document.getElementById("editDepartment").value.trim();
+        const enteredYear = parseInt(editJoiningYear.value, 10);
+        const thisYear = new Date().getFullYear();
+
+        if (enteredYear > thisYear) {
+            alert(`Joining year cannot exceed ${thisYear}.`);
+            return;
+        }
+
+        if (newName) document.getElementById("userNameDisplay").textContent = newName;
+        if (newDept) document.getElementById("userDeptDisplay").textContent = newDept;
+        document.getElementById("userYearDisplay").textContent = enteredYear;
+        if (selectedProgramInput) document.getElementById("userProgramDisplay").textContent = selectedProgramInput.value;
+        editProfileModal.classList.add("hidden");
+    });
+}
+
+const profileTabs = document.querySelectorAll(".profile-tab");
+const tabContents = document.querySelectorAll(".tab-content");
+profileTabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+        profileTabs.forEach(t => t.classList.remove("active"));
+        tabContents.forEach(c => c.classList.remove("active-tab", "hidden"));
+
+        tab.classList.add("active");
+        const target = document.getElementById(tab.getAttribute("data-tab") + "Tab");
+        tabContents.forEach(c => c.classList.add("hidden"));
+        if (target) target.classList.remove("hidden");
+    });
+});
