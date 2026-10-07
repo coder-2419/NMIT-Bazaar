@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NMIT Bazaar</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=Pacifico&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- =====================================================
+         LOADING SCREEN
+    ===================================================== -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-content">
+            <img src="nmit-logo.png" alt="NMIT Logo" class="loading-logo-image" onerror="this.style.display='none'">
+            <div class="loading-bazaar">BAZAAR</div>
+            <div class="loading-tagline">CONNECT. TRADE. THRIVE.</div>
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Loading Your Marketplace....</p>
+            <div class="connection-status">
+                <span id="connectionDot"></span>
+                <span id="connectionText">Checking connection...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         APPLICATION
+    ===================================================== -->
+    <div id="app" class="app hidden">
+        <!-- TOP NAVIGATION -->
+        <header class="navbar">
+            <div class="nav-brand">
+                <div class="brand-logo">
+                    <img src="nmit-logo.png" alt="NMIT Logo" onerror="this.style.display='none'">
+                </div>
+                <div class="brand-details">
+                    <div class="brand-name">NMIT <span>BAZAAR</span></div>
+                    <div class="brand-subtitle">CAMPUS MARKETPLACE</div>
+                </div>
+            </div>
+
+            <nav class="nav-links">
+                <button class="nav-link active" data-page="home">Home</button>
+                <button class="nav-link" data-page="alerts">
+                    <span class="alert-symbol">♢</span> Alerts
+                </button>
+                <button class="nav-link sell-nav" data-page="sell">
+                    <span class="sell-plus">+</span><span>Sell</span>
+                </button>
+                <button class="nav-link profile-nav" data-page="profile">
+                    <img src="profile.png" alt="Profile" onerror="this.style.display='none'">
+                    <span>Profile</span>
+                </button>
+            </nav>
+        </header>
+
+        <!-- =====================================================
+             HOME PAGE
+        ===================================================== -->
+        <main id="homePage" class="page active-page">
+            <section class="hero">
+                <div class="hero-content">
+                    <div class="marketplace-heading">
+                        <span class="nmit-word">NMIT</span>
+                        <span class="marketplace-word">STUDENT MARKETPLACE</span>
+                    </div>
+                    <h1>Everything you need, <span>right on campus.</span></h1>
+                    <p class="hero-description">Buy, sell and discover useful items from fellow NMITians.</p>
+                </div>
+                <div class="hero-decoration"></div>
+            </section>
+
+            <section class="search-section">
+                <div class="search-wrapper">
+                    <div class="search-glow"></div>
+                    <div class="search-box">
+                        <input id="searchInput" type="text" placeholder="Search books, electronics, lab supplies..." autocomplete="off">
+                        <button id="searchButton" class="search-button" aria-label="Search"></button>
+                    </div>
+                    <div id="searchSuggestions" class="search-suggestions hidden"></div>
+                </div>
+            </section>
+
+            <!-- CATEGORIES (UPDATED WITH REAL IMAGES) -->
+            <section class="section">
+                <div class="section-heading">
+                    <div><h2>Browse Categories</h2></div>
+                </div>
+                <div class="category-grid">
+                    <button class="category-card" data-category="Books">
+                        <div class="category-img-box">
+                            <img src="cat-books.jpg" alt="Books">
+                        </div>
+                        <span>Books</span>
+                    </button>
+                    <button class="category-card" data-category="Electronics">
+                        <div class="category-img-box">
+                            <img src="cat-electronics.jpg" alt="Electronics">
+                        </div>
+                        <span>Electronics</span>
+                    </button>
+                    <button class="category-card" data-category="Lab Supplies">
+                        <div class="category-img-box">
+                            <img src="cat-lab.png" alt="Lab Supplies">
+                        </div>
+                        <span>Lab Supplies</span>
+                    </button>
+                    <button class="category-card" data-category="Accessories">
+                        <div class="category-img-box">
+                            <img src="cat-accessories.png" alt="Accessories">
+                        </div>
+                        <span>Accessories</span>
+                    </button>
+                    <button class="category-card" data-category="Clothing">
+                        <div class="category-img-box">
+                            <img src="cat-clothing.png" alt="Clothing">
+                        </div>
+                        <span>Clothing</span>
+                    </button>
+                    <button class="category-card" data-category="Others">
+                        <div class="category-img-box">
+                            <img src="cat-others.jpg" alt="Others">
+                        </div>
+                        <span>Others</span>
+                    </button>
+                </div>
+            </section>
+
+            <section class="section marketplace-section">
+                <div class="marketplace-header">
+                    <div>
+                        <span class="section-label">MARKETPLACE</span>
+                        <h2>Items Available</h2>
+                    </div>
+                    <span id="resultCount" class="result-count">8 items</span>
+                </div>
+                <div id="productGrid" class="product-grid"></div>
+            </section>
+        </main>
+
+        <!-- =====================================================
+             ALERTS / CHAT INBOX PAGE
+        ===================================================== -->
+        <main id="alertsPage" class="page">
+            <section class="simple-page chat-page">
+                <div class="chat-layout">
+                    <div class="chat-sidebar">
+                        <div class="chat-header">
+                            <h2>Messages</h2>
+                        </div>
+                        <div class="chat-list">
+                            <div class="chat-list-item active-chat">
+                                <div class="chat-item-img">🧮</div>
+                                <div class="chat-item-details">
+                                    <div class="chat-item-title">Casio fx-991EX</div>
+                                    <div class="chat-item-user">Rahul M.</div>
+                                    <div class="chat-item-preview">Hey, does the LCD bleed affect the display?</div>
+                                </div>
+                                <div class="chat-item-meta">
+                                    <span class="chat-time">10m</span>
+                                    <span class="unread-badge">1</span>
+                                </div>
+                            </div>
+                            <div class="chat-list-item">
+                                <div class="chat-item-img">🔌</div>
+                                <div class="chat-item-details">
+                                    <div class="chat-item-title">ESP32 Kit + L298N</div>
+                                    <div class="chat-item-user">Sneha K.</div>
+                                    <div class="chat-item-preview">Yes, the motor driver is included.</div>
+                                </div>
+                                <div class="chat-item-meta">
+                                    <span class="chat-time">2h</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chat-window">
+                        <div class="chat-window-header">
+                            <div class="chat-item-img">🧮</div>
+                            <div class="chat-window-info">
+                                <h3>Casio fx-991EX Calculator</h3>
+                                <span>₹300 • Chatting with Rahul M.</span>
+                            </div>
+                        </div>
+                        <div class="chat-messages">
+                            <div class="message-bubble received">
+                                <p>Hi, is this calculator still available?</p>
+                                <span class="msg-time">10:42 AM</span>
+                            </div>
+                            <div class="message-bubble sent">
+                                <p>Yes, it is! Let me know if you want to check it out on campus.</p>
+                                <span class="msg-time">10:45 AM</span>
+                            </div>
+                            <div class="message-bubble received">
+                                <p>Awesome. Hey, does the LCD bleed affect the display when viewing matrices?</p>
+                                <span class="msg-time">10:51 AM</span>
+                            </div>
+                        </div>
+                        <div class="chat-input-area">
+                            <input type="text" placeholder="Type a message..." class="chat-input">
+                            <button class="chat-send-btn">➤</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- =====================================================
+             SELL PAGE (FORM)
+        ===================================================== -->
+        <main id="sellPage" class="page">
+            <section class="simple-page">
+                <span class="section-label">SELL AN ITEM</span>
+                <h1>Create a Listing</h1>
+                
+                <div class="form-container">
+                    <form id="createListingForm">
+                        <div class="form-group image-upload-group">
+                            <div id="imagePreview" class="image-preview">
+                                <span>+ Upload Image</span>
+                            </div>
+                            <input type="file" id="itemImage" accept="image/*" required hidden>
+                            <button type="button" id="triggerImageBtn" class="secondary-button">Choose Photo</button>
+                        </div>
+            
+                        <div class="form-group">
+                            <label for="itemName">Item Name</label>
+                            <input type="text" id="itemName" placeholder="e.g., Engineering Mathematics Textbook" required>
+                        </div>
+            
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="itemPrice">Price (₹)</label>
+                                <input type="number" id="itemPrice" placeholder="0" min="1" step="1" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="itemCategory">Category</label>
+                                <select id="itemCategory" required>
+                                    <option value="" disabled selected>Select category...</option>
+                                    <option value="Books">Books</option>
+                                    <option value="Electronics">Electronics</option>
+                                    <option value="Lab Supplies">Lab Supplies</option>
+                                    <option value="Accessories">Accessories</option>
+                                    <option value="Clothing">Clothing</option>
+                                    <option value="Others">Others</option>
+                                </select>
+                            </div>
+                        </div>
+            
+                        <div class="form-group">
+                            <label for="itemDescription">Description</label>
+                            <textarea id="itemDescription" rows="4" placeholder="Describe the condition, features, etc." required></textarea>
+                        </div>
+            
+                        <button type="submit" class="primary-button submit-btn">Publish Listing</button>
+                        <div id="formError" class="form-error hidden"></div>
+                    </form>
+                </div>
+            </section>
+        </main>
+
+        <!-- =====================================================
+             PROFILE & FAVORITES PAGE
+        ===================================================== -->
+        <main id="profilePage" class="page">
+            <section class="simple-page">
+                <div class="profile-header-card">
+                    <img src="profile.png" alt="Profile" class="profile-large" onerror="this.style.display='none'">
+                    <div class="profile-info">
+                        <h2 id="userNameDisplay">Prajwal</h2>
+                        <p>
+                            <span id="userProgramDisplay">Undergraduate - BTech</span> • 
+                            <span id="userDeptDisplay">Robotics & AI Engineering</span> • 
+                            Batch of <span id="userYearDisplay">2024</span>
+                        </p>
+                        <button class="secondary-button edit-profile-btn" id="editProfileBtn">Edit Profile</button>
+                    </div>
+                </div>
+
+                <div class="profile-tabs">
+                    <button class="profile-tab active" data-tab="favorites">❤️ My Favorites</button>
+                    <button class="profile-tab" data-tab="listings">📦 My Listings</button>
+                </div>
+
+                <div id="favoritesTab" class="tab-content active-tab">
+                    <div class="product-grid"></div>
+                </div>
+
+                <div id="listingsTab" class="tab-content hidden">
+                    <div class="product-grid">
+                        <article class="product-card my-listing-item">
+                            <div class="sold-badge">SOLD</div>
+                            <div class="owner-controls">
+                                <button class="edit-btn" title="Edit Listing">✏️</button>
+                                <button class="delete-btn" title="Delete Listing">🗑️</button>
+                            </div>
+                            <div class="product-image">🧮</div>
+                            <div class="product-info">
+                                <div class="product-category">Electronics</div>
+                                <div class="product-name">Casio fx-991EX</div>
+                                <div class="price-action-row">
+                                    <span class="product-price">₹300</span>
+                                    <button class="sold-text-btn sold-btn">Mark Sold</button>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- =====================================================
+             EDIT PROFILE MODAL
+        ===================================================== -->
+        <div id="editProfileModal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>Edit Profile</h3>
+                    <button id="closeProfileModal" class="modal-close-btn">&times;</button>
+                </div>
+                <form id="editProfileForm">
+                    <div class="modal-form-group">
+                        <label for="editFullName">Full Name</label>
+                        <input type="text" id="editFullName" required autocomplete="off">
+                    </div>
+
+                    <div class="modal-form-group">
+                        <label>Program</label>
+                        <input type="hidden" id="selectedProgramInput" value="Undergraduate - BTech">
+                        <div class="program-scroll-container">
+                            <button type="button" class="program-pill-btn active" data-program="Undergraduate - BTech">Undergraduate - BTech</button>
+                            <button type="button" class="program-pill-btn" data-program="Undergraduate - BSc (Hons) Program">Undergraduate - BSc (Hons) Program</button>
+                            <button type="button" class="program-pill-btn" data-program="Postgraduate">Postgraduate</button>
+                            <button type="button" class="program-pill-btn" data-program="Doctoral Programs">Doctoral Programs</button>
+                            <button type="button" class="program-pill-btn" data-program="Department of Applied Sciences">Department of Applied Sciences</button>
+                            <button type="button" class="program-pill-btn" data-program="Department of Humanities and Social Sciences">Department of Humanities and Social Sciences</button>
+                        </div>
+                    </div>
+
+                    <div class="modal-form-group">
+                        <label for="editDepartment">Department</label>
+                        <input type="text" id="editDepartment" placeholder="e.g. Robotics & AI, CSE, Mechanical..." required autocomplete="off">
+                    </div>
+
+                    <div class="modal-form-group">
+                        <label for="editJoiningYear">College Joining Year</label>
+                        <input type="number" id="editJoiningYear" min="2010" required>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" id="cancelProfileModal" class="secondary-button">Cancel</button>
+                        <button type="submit" class="primary-button modal-save-btn">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- =====================================================
+             FOOTER
+        ===================================================== -->
+        <footer>
+            <div class="footer-logo">
+                <img src="nmit-logo.png" alt="NMIT Logo" onerror="this.style.display='none'">
+                <div>
+                    <strong>NMIT BAZAAR</strong>
+                    <p>Your campus. Your marketplace.</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
