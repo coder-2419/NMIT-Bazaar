@@ -55,7 +55,7 @@
                     <img src="profile.png" alt="Profile" onerror="this.style.display='none'">
                     <span>Profile</span>
                 </button>
-                <button id="authBtn" class="nav-link auth-nav-btn">Sign In</button>
+                <button id="authBtn" type="button" class="auth-nav-btn">Sign In</button>
             </nav>
         </header>
 
@@ -86,7 +86,7 @@
                 </div>
             </section>
 
-            <!-- CATEGORIES (UPDATED WITH REAL IMAGES) -->
+            <!-- CATEGORIES (REAL IMAGES) -->
             <section class="section">
                 <div class="section-heading">
                     <div><h2>Browse Categories</h2></div>
@@ -216,8 +216,7 @@
         ===================================================== -->
         <main id="sellPage" class="page">
             <section class="simple-page">
-                <span class="section-label">SELL AN ITEM</span>
-                <h1>Create a Listing</h1>
+                <h1>SELL AN ITEM</h1>
                 
                 <div class="form-container">
                     <form id="createListingForm">
@@ -362,20 +361,6 @@
         </div>
 
         <!-- =====================================================
-             FOOTER
-        ===================================================== -->
-        <footer>
-            <div class="footer-logo">
-                <img src="nmit-logo.png" alt="NMIT Logo" onerror="this.style.display='none'">
-                <div>
-                    <strong>NMIT BAZAAR</strong>
-                    <p>Your campus. Your marketplace.</p>
-                </div>
-            </div>
-        </footer>
-    </div>
-
-    <!-- =====================================================
              AUTH MODAL (GMAIL GATE)
         ===================================================== -->
         <div id="authModal" class="modal-overlay hidden">
@@ -408,11 +393,26 @@
             </div>
         </div>
 
-    <!-- Firebase App and Services (v9 compat mode for plain script tag use) -->
+        <!-- =====================================================
+             FOOTER
+        ===================================================== -->
+        <footer>
+            <div class="footer-logo">
+                <img src="nmit-logo.png" alt="NMIT Logo" onerror="this.style.display='none'">
+                <div>
+                    <strong>NMIT BAZAAR</strong>
+                    <p>Your campus. Your marketplace.</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Firebase Core, Firestore & Auth (v9 compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
+    <!-- App Script -->
     <script src="script.js"></script>
 </body>
 </html>

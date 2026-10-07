@@ -1,21 +1,7 @@
 console.log("Script connected successfully! 🚀");
 
 /* =====================================================
-   DEMO MARKETPLACE DATA
-===================================================== */
-const marketplaceItems = [
-    { id: "item-1", name: "Engineering Mathematics Book", category: "Books", icon: "📚", price: 250, isFavorite: false },
-    { id: "item-2", name: "Scientific Calculator", category: "Electronics", icon: "🧮", price: 450, isFavorite: false },
-    { id: "item-3", name: "Arduino UNO", category: "Electronics", icon: "🔌", price: 600, isFavorite: false },
-    { id: "item-4", name: "Physics Lab Coat", category: "Lab Supplies", icon: "🥼", price: 350, isFavorite: false },
-    { id: "item-5", name: "Engineering Drawing Kit", category: "Lab Supplies", icon: "📐", price: 300, isFavorite: false },
-    { id: "item-6", name: "USB Type-C Cable", category: "Electronics", icon: "🔋", price: 150, isFavorite: false },
-    { id: "item-7", name: "College Backpack", category: "Accessories", icon: "🎒", price: 500, isFavorite: false },
-    { id: "item-8", name: "NMIT Hoodie", category: "Clothing", icon: "👕", price: 700, isFavorite: false }
-];
-
-/* =====================================================
-   FIREBASE INITIALIZATION
+   BACKEND CONFIGURATION (FIRESTORE + CLOUDINARY)
 ===================================================== */
 const firebaseConfig = {
   apiKey: "AIzaSyCz5jwtnPd-zw32eGhF7LCtR59WNYQ4cnE",
@@ -26,19 +12,17 @@ const firebaseConfig = {
   appId: "1:1064459826757:web:c6b86ac236559b87d5552c"
 };
 
-// Initialize Firebase
+// Initialize Firebase & Services
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
-
 let currentUser = null;
 
-const CLOUDINARY_CLOUD_NAME = "a9wphmyb";
-const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";
+// Cloudinary Unsigned Settings
+const CLOUDINARY_CLOUD_NAME = "a9wphmyb"; 
+const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";             
 
-console.log("Firebase connected successfully! 🚀");
-
-// In-memory array synced live from Firestore
+// In-memory array populated from Firestore
 let marketplaceItems = [];
 
 /* =====================================================
@@ -83,6 +67,24 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /* =====================================================
+   REAL-TIME FIRESTORE LISTENER
+===================================================== */
+db.collection("listings").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
+    marketplaceItems = [];
+    snapshot.forEach((doc) => {
+        marketplaceItems.push({
+            id: doc.id,
+            ...doc.data()
+        });
+    });
+    
+    renderProducts(marketplaceItems);
+    renderFavorites();
+}, (error) => {
+    console.error("Firestore sync error:", error);
+});
+
+/* =====================================================
    FAVORITES SYNCHRONIZATION
 ===================================================== */
 function renderFavorites() {
@@ -103,9 +105,9 @@ function renderFavorites() {
 
     container.innerHTML = "";
     favoriteItems.forEach(item => {
-        const imageContent = item.icon.startsWith("<img") || item.icon.length > 5
-            ? item.icon 
-            : `<div style="font-size: 48px;">${item.icon}</div>`;
+        const imageContent = item.imageUrl
+            ? `<img src="${item.imageUrl}" alt="${item.name}">`
+            : `<div style="font-size: 48px;">${item.icon || "📦"}</div>`;
 
         const card = document.createElement("article");
         card.className = "product-card";
@@ -125,14 +127,9 @@ function toggleFavorite(itemId) {
     const item = marketplaceItems.find(i => i.id === itemId);
     if (!item) return;
 
-    item.isFavorite = !item.isFavorite;
-
-    const toggleButtons = document.querySelectorAll(`.favorite-toggle-btn[data-id="${itemId}"]`);
-    toggleButtons.forEach(btn => {
-        btn.classList.toggle("is-favorite", item.isFavorite);
-    });
-
-    renderFavorites();
+    db.collection("listings").doc(itemId).update({
+        isFavorite: !item.isFavorite
+    }).catch(err => console.error("Error updating favorite:", err));
 }
 
 /* =====================================================
@@ -142,7 +139,7 @@ const productGrid = document.getElementById("productGrid");
 const resultCount = document.getElementById("resultCount");
 
 function renderProducts(items) {
-    if(!productGrid || !resultCount) return;
+    if (!productGrid || !resultCount) return;
     productGrid.innerHTML = "";
     resultCount.textContent = `${items.length} ${items.length === 1 ? "item" : "items"}`;
 
@@ -151,18 +148,18 @@ function renderProducts(items) {
             <div class="empty-state" style="grid-column:1/-1">
                 <div class="empty-icon">🔎</div>
                 <h3>No items found</h3>
-                <p>Try searching for another item.</p>
+                <p>Try searching for another item or post a new listing!</p>
             </div>`;
         return;
     }
 
     items.forEach(item => {
         const card = document.createElement("article");
-        card.className = "product-card";
+        card.className = `product-card ${item.isSold ? 'sold-out' : ''}`;
         
-        const imageContent = item.icon.startsWith("<img") || item.icon.length > 5
-            ? item.icon 
-            : `<div style="font-size: 48px;">${item.icon}</div>`;
+        const imageContent = item.imageUrl
+            ? `<img src="${item.imageUrl}" alt="${item.name}">`
+            : `<div style="font-size: 48px;">${item.icon || "📦"}</div>`;
 
         card.innerHTML = `
             <button class="favorite-toggle-btn ${item.isFavorite ? 'is-favorite' : ''}" data-id="${item.id}" aria-label="Add to favorites">
@@ -179,7 +176,6 @@ function renderProducts(items) {
         productGrid.appendChild(card);
     });
 }
-renderProducts(marketplaceItems);
 
 if (productGrid) {
     productGrid.addEventListener("click", (e) => {
@@ -193,7 +189,7 @@ if (productGrid) {
 }
 
 /* =====================================================
-   SEARCH & SORTING LOGIC
+   SEARCH & SORTING
 ===================================================== */
 const searchInput = document.getElementById("searchInput");
 const searchButton = document.getElementById("searchButton");
@@ -263,9 +259,8 @@ function showSuggestions(items) {
     items.slice(0, 5).forEach(item => {
         const suggestion = document.createElement("div");
         suggestion.className = "suggestion-item";
-        const iconVal = item.icon.startsWith("<img") ? "📦" : item.icon;
         suggestion.innerHTML = `
-            <div class="suggestion-icon">${iconVal}</div>
+            <div class="suggestion-icon">📦</div>
             <div>
                 <div class="suggestion-name">${item.name}</div>
                 <div class="suggestion-category">${item.category} • ₹${item.price}</div>
@@ -301,6 +296,15 @@ const pages = {
 navLinks.forEach(button => {
     button.addEventListener("click", () => {
         const target = button.dataset.page;
+        if (!target || !pages[target]) return;
+
+        // Gate the Sell tab behind authentication
+        if (target === "sell" && !currentUser) {
+            alert("Please sign in with your Gmail account to sell items.");
+            openAuthModal(false);
+            return;
+        }
+
         navLinks.forEach(btn => btn.classList.remove("active"));
         button.classList.add("active");
         
@@ -308,9 +312,7 @@ navLinks.forEach(button => {
             if(page) page.classList.remove("active-page");
         });
         
-        if (pages[target]) {
-            pages[target].classList.add("active-page");
-        }
+        pages[target].classList.add("active-page");
         
         if (target === "profile") {
             renderFavorites();
@@ -346,7 +348,7 @@ categoryButtons.forEach(button => {
 });
 
 /* =====================================================
-   CREATE LISTING FORM HANDLING
+   CREATE LISTING FORM HANDLING (CLOUDINARY + FIRESTORE)
 ===================================================== */
 const createListingForm = document.getElementById("createListingForm");
 const itemImageInput = document.getElementById("itemImage");
@@ -369,13 +371,16 @@ if(triggerImageBtn && itemImageInput) {
     });
 }
 
-/* =====================================================
-   CREATE LISTING (CLOUDINARY UPLOAD -> FIRESTORE DOCUMENT)
-===================================================== */
-if (createListingForm) {
+if(createListingForm) {
     createListingForm.addEventListener("submit", async function(e) {
         e.preventDefault();
 
+        if (!currentUser) {
+            alert("Please sign in before posting an item.");
+            openAuthModal(false);
+            return;
+        }
+        
         const name = document.getElementById("itemName").value.trim();
         const price = parseFloat(document.getElementById("itemPrice").value);
         const category = document.getElementById("itemCategory").value;
@@ -392,59 +397,58 @@ if (createListingForm) {
             return;
         }
 
-        if (formError) formError.classList.add("hidden");
+        if(formError) formError.classList.add("hidden");
 
         const submitBtn = createListingForm.querySelector(".submit-btn");
         submitBtn.disabled = true;
         submitBtn.textContent = "Uploading image...";
 
         try {
-            // 1. Upload raw image directly to Cloudinary via REST API
+            // Upload to Cloudinary Free CDN
             const formData = new FormData();
             formData.append("file", imageFile);
             formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
             const uploadRes = await fetch(
                 `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-                {
-                    method: "POST",
-                    body: formData
-                }
+                { method: "POST", body: formData }
             );
 
             if (!uploadRes.ok) {
                 const errData = await uploadRes.json();
-                throw new Error(errData.error?.message || "Cloudinary upload failed");
+                throw new Error(errData.error?.message || "Image upload failed");
             }
 
             const uploadData = await uploadRes.json();
-            const imageUrl = uploadData.secure_url; // Hosted CDN HTTPS image URL
+            const imageUrl = uploadData.secure_url;
 
-            submitBtn.textContent = "Saving to marketplace...";
+            submitBtn.textContent = "Saving listing...";
 
-            // 2. Save only metadata and the image URL to Firestore
+            // Save document into Firestore
             await db.collection("listings").add({
                 name: name,
                 price: price,
                 category: category,
                 description: desc,
                 imageUrl: imageUrl,
+                sellerEmail: currentUser.email,
+                sellerUid: currentUser.uid,
                 isFavorite: false,
                 isSold: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
             alert("Success! Your item is live on NMIT Bazaar.");
-
+            
             createListingForm.reset();
-            if (imagePreview) imagePreview.innerHTML = `<span>+ Upload Image</span>`;
-
+            if(imagePreview) imagePreview.innerHTML = `<span>+ Upload Image</span>`;
+            
             const homeNav = document.querySelector('[data-page="home"]');
-            if (homeNav) homeNav.click();
+            if(homeNav) homeNav.click();
 
         } catch (err) {
             console.error("Listing submission error:", err);
-            showError(err.message || "Failed to publish listing. Please check connection.");
+            showError(err.message || "Failed to publish listing.");
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = "Publish Listing";
@@ -525,7 +529,7 @@ if (chatSendBtn && chatInput && chatMessages) {
 }
 
 /* =====================================================
-   PROFILE INTERACTIONS & EDIT MODAL LOGIC
+   EDIT PROFILE MODAL
 ===================================================== */
 const editProfileBtn = document.getElementById("editProfileBtn");
 const editProfileModal = document.getElementById("editProfileModal");
@@ -657,6 +661,7 @@ if (listingsTab) {
         }
     });
 }
+
 /* =====================================================
    FIREBASE AUTHENTICATION (GMAIL GATE)
 ===================================================== */
@@ -674,7 +679,6 @@ const authSubmitBtn = document.getElementById("authSubmitBtn");
 const tabSignIn = document.getElementById("tabSignIn");
 const tabSignUp = document.getElementById("tabSignUp");
 
-// 1. Listen for Authentication Changes across tabs/reloads
 auth.onAuthStateChanged((user) => {
     currentUser = user;
     if (user) {
@@ -685,7 +689,6 @@ auth.onAuthStateChanged((user) => {
     }
 });
 
-// 2. Open / Close Modal Handlers
 function openAuthModal(signup = false) {
     if (!authModal) return;
     setAuthMode(signup);
@@ -718,7 +721,10 @@ if (tabSignIn) tabSignIn.addEventListener("click", () => setAuthMode(false));
 if (tabSignUp) tabSignUp.addEventListener("click", () => setAuthMode(true));
 
 if (authBtn) {
-    authBtn.addEventListener("click", () => {
+    authBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
         if (currentUser) {
             if (confirm("Do you want to sign out?")) {
                 auth.signOut();
@@ -731,53 +737,4 @@ if (authBtn) {
 
 if (closeAuthModal) closeAuthModal.addEventListener("click", closeAuthModalHandler);
 if (authModal) {
-    authModal.addEventListener("click", (e) => {
-        if (e.target === authModal) closeAuthModalHandler();
-    });
-}
-
-// 3. Gmail Validation & Submit
-if (authForm) {
-    authForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const email = authEmail.value.trim().toLowerCase();
-        const password = authPassword.value;
-
-        // Domain Gate
-        if (!email.endsWith("@gmail.com")) {
-            authError.textContent = "Access restricted: Please use a valid @gmail.com address.";
-            authError.classList.remove("hidden");
-            return;
-        }
-
-        authError.classList.add("hidden");
-        authSubmitBtn.disabled = true;
-
-        try {
-            if (isSignUpMode) {
-                await auth.createUserWithEmailAndPassword(email, password);
-                alert("Account created successfully!");
-            } else {
-                await auth.signInWithEmailAndPassword(email, password);
-            }
-            closeAuthModalHandler();
-        } catch (err) {
-            authError.textContent = err.message;
-            authError.classList.remove("hidden");
-        } finally {
-            authSubmitBtn.disabled = false;
-        }
-    });
-}
-
-// 4. Gate Selling Behind Login
-const sellNavLink = document.querySelector('[data-page="sell"]');
-if (sellNavLink) {
-    sellNavLink.addEventListener("click", (e) => {
-        if (!currentUser) {
-            e.stopImmediatePropagation();
-            alert("Please sign in with your Gmail account to sell items.");
-            openAuthModal(false);
-        }
-    });
-}
+    authModal
