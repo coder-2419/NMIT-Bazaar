@@ -286,49 +286,203 @@ function renderMyListings() {
 }
 
 /* =====================================================
-   8. MESSAGES & CHAT INTERACTION
+   8. REAL-TIME CHAT (FIRESTORE THREADS & MESSAGES)
 ===================================================== */
-const chatListingTitle = document.getElementById("chatListingTitle");
-const chatSellerSubtitle = document.getElementById("chatSellerSubtitle");
+let currentChatId = null;
+let unsubscribeMessages = null;
+let unsubscribeThreads = null;
+
+const chatLayout = document.querySelector(".chat-layout");
+const chatBackBtn = document.getElementById("chatBackBtn");
+const chatThreadsList = document.getElementById("chatThreadsList");
 const chatHeaderTitle = document.getElementById("chatHeaderTitle");
 const chatHeaderSub = document.getElementById("chatHeaderSub");
 const chatMessages = document.getElementById("chatMessages");
 const chatInput = document.getElementById("chatInput");
 const chatSendBtn = document.getElementById("chatSendBtn");
 
-function startChatWithItem(item) {
-    switchNavigationTab("messages");
+// 1. Listen for User's Active Chat Threads in Real-Time
+function subscribeToUserChats() {
+    if (!currentUser || !chatThreadsList) return;
+    if (unsubscribeThreads) unsubscribeThreads();
 
-    const sellerName = item.sellerName || (item.sellerEmail ? item.sellerEmail.split("@")[0] : "Student Seller");
+    unsubscribeThreads = db.collection("chats")
+        .where("participants", "array-contains", currentUser.uid)
+        .orderBy("updatedAt", "desc")
+        .onSnapshot((snapshot) => {
+            chatThreadsList.innerHTML = "";
 
-    if (chatListingTitle) chatListingTitle.textContent = item.name;
-    if (chatSellerSubtitle) chatSellerSubtitle.textContent = sellerName;
-    if (chatHeaderTitle) chatHeaderTitle.textContent = item.name;
-    if (chatHeaderSub) chatHeaderSub.textContent = `₹${item.price} • Chatting with ${sellerName}`;
+            if (snapshot.empty) {
+                chatThreadsList.innerHTML = `
+                    <div style="padding: 24px; text-align: center; color: #70807a; font-size: 13px;">
+                        No active conversations.<br>Tap "Chat with Seller" on any item!
+                    </div>`;
+                return;
+            }
 
-    if (chatMessages) {
-        chatMessages.innerHTML = `
-            <div class="message-bubble received">
-                <p>Hi! I'm interested in buying your <strong>${item.name}</strong> for ₹${item.price}. Is it still available on campus?</p>
-                <span class="msg-time">Just now</span>
-            </div>
-        `;
-    }
+            snapshot.forEach((doc) => {
+                const chat = doc.data();
+                const chatId = doc.id;
+                const otherUserName = (chat.buyerUid === currentUser.uid) ? chat.sellerName : chat.buyerName;
+
+                const itemDiv = document.createElement("div");
+                itemDiv.className = `chat-list-item ${currentChatId === chatId ? "active-chat" : ""}`;
+                itemDiv.innerHTML = `
+                    <div class="chat-item-img">
+                        ${chat.listingImage ? `<img src="${chat.listingImage}" style="width:100%;height:100%;border-radius:10px;object-fit:cover;">` : "📦"}
+                    </div>
+                    <div class="chat-item-details">
+                        <div class="chat-item-title">${chat.listingTitle || "Item"}</div>
+                        <div class="chat-item-user">${otherUserName || "Student"}</div>
+                        <div class="chat-item-preview">${chat.lastMessage || "Started a chat..."}</div>
+                    </div>
+                `;
+
+                itemDiv.addEventListener("click", () => {
+                    openChatConversation(chatId, chat);
+                });
+
+                chatThreadsList.appendChild(itemDiv);
+            });
+        }, (err) => {
+            console.error("Chat threads listener error:", err);
+        });
 }
 
-function sendChatMessage() {
-    if (!chatInput || !chatMessages) return;
+// 2. Open an Existing Conversation Window
+function openChatConversation(chatId, chatData) {
+    currentChatId = chatId;
+
+    // Mobile screen view shift
+    if (chatLayout) chatLayout.classList.add("in-conversation");
+
+    // Header info
+    const otherUserName = (chatData.buyerUid === currentUser.uid) ? chatData.sellerName : chatData.buyerName;
+    if (chatHeaderTitle) chatHeaderTitle.textContent = chatData.listingTitle || "Item";
+    if (chatHeaderSub) chatHeaderSub.textContent = `₹${chatData.listingPrice || ""} • Chatting with ${otherUserName || "Student"}`;
+
+    // Highlight selected item in sidebar
+    document.querySelectorAll(".chat-list-item").forEach(el => el.classList.remove("active-chat"));
+
+    // Real-time listener for messages subcollection
+    if (unsubscribeMessages) unsubscribeMessages();
+    if (chatMessages) chatMessages.innerHTML = "";
+
+    unsubscribeMessages = db.collection("chats").doc(chatId)
+        .collection("messages")
+        .orderBy("createdAt", "asc")
+        .onSnapshot((snapshot) => {
+            if (!chatMessages) return;
+            chatMessages.innerHTML = "";
+
+            if (snapshot.empty) {
+                chatMessages.innerHTML = `<div style="text-align:center; color:#70807a; padding:20px; font-size:13px;">No messages yet. Send a message below!</div>`;
+                return;
+            }
+
+            snapshot.forEach((doc) => {
+                const msg = doc.data();
+                const isSentByMe = msg.senderUid === currentUser.uid;
+                const timeString = msg.createdAt ? new Date(msg.createdAt.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now";
+
+                const bubble = document.createElement("div");
+                bubble.className = `message-bubble ${isSentByMe ? "sent" : "received"}`;
+                bubble.innerHTML = `
+                    <p>${msg.text}</p>
+                    <span class="msg-time">${timeString}</span>
+                `;
+                chatMessages.appendChild(bubble);
+            });
+
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }, (err) => {
+            console.error("Messages load error:", err);
+        });
+}
+
+// 3. Initiate Chat from "Chat with Seller" Button
+async function startChatWithItem(item) {
+    if (!currentUser) {
+        alert("Please sign in to chat with sellers.");
+        openAuthModal("signin");
+        return;
+    }
+
+    if (item.sellerUid === currentUser.uid) {
+        alert("This is your own listing!");
+        return;
+    }
+
+    switchNavigationTab("messages");
+
+    const buyerUid = currentUser.uid;
+    const sellerUid = item.sellerUid || "seller";
+    const buyerName = currentUser.displayName || currentUser.email.split("@")[0];
+    const sellerName = item.sellerName || (item.sellerEmail ? item.sellerEmail.split("@")[0] : "Seller");
+
+    // Standard deterministic Chat ID: listingId_buyerUid
+    const chatId = `${item.id}_${buyerUid}`;
+
+    const chatDocRef = db.collection("chats").doc(chatId);
+    const chatDoc = await chatDocRef.get();
+
+    if (!chatDoc.exists) {
+        const initialText = `Hi! I'm interested in buying your ${item.name} for ₹${item.price}. Is it still available on campus?`;
+
+        await chatDocRef.set({
+            listingId: item.id,
+            listingTitle: item.name,
+            listingPrice: item.price,
+            listingImage: item.imageUrl || "",
+            buyerUid: buyerUid,
+            buyerName: buyerName,
+            sellerUid: sellerUid,
+            sellerName: sellerName,
+            participants: [buyerUid, sellerUid],
+            lastMessage: initialText,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Add introductory message
+        await chatDocRef.collection("messages").add({
+            senderUid: buyerUid,
+            senderName: buyerName,
+            text: initialText,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    }
+
+    const updatedSnap = await chatDocRef.get();
+    openChatConversation(chatId, updatedSnap.data());
+}
+
+// 4. Send Message Function
+async function sendChatMessage() {
+    if (!currentUser || !currentChatId || !chatInput) return;
     const text = chatInput.value.trim();
     if (!text) return;
 
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const bubble = document.createElement("div");
-    bubble.className = "message-bubble sent";
-    bubble.innerHTML = `<p>${text}</p><span class="msg-time">${time}</span>`;
-    
-    chatMessages.appendChild(bubble);
     chatInput.value = "";
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    try {
+        const chatDocRef = db.collection("chats").doc(currentChatId);
+
+        // Add to subcollection
+        await chatDocRef.collection("messages").add({
+            senderUid: currentUser.uid,
+            senderName: currentUser.displayName || currentUser.email.split("@")[0],
+            text: text,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Update preview snippet on the thread doc
+        await chatDocRef.update({
+            lastMessage: text,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    } catch (err) {
+        console.error("Error sending message:", err);
+    }
 }
 
 if (chatSendBtn) chatSendBtn.addEventListener("click", sendChatMessage);
@@ -340,6 +494,26 @@ if (chatInput) {
         }
     });
 }
+
+// Mobile back arrow to thread list
+if (chatBackBtn && chatLayout) {
+    chatBackBtn.addEventListener("click", () => {
+        chatLayout.classList.remove("in-conversation");
+    });
+}
+
+// Subscribe to chats when user logs in / unsubscribe when logged out
+auth.onAuthStateChanged((user) => {
+    if (user) {
+        subscribeToUserChats();
+    } else {
+        if (unsubscribeThreads) unsubscribeThreads();
+        if (unsubscribeMessages) unsubscribeMessages();
+        currentChatId = null;
+        if (chatThreadsList) chatThreadsList.innerHTML = "";
+        if (chatMessages) chatMessages.innerHTML = "";
+    }
+});
 
 /* =====================================================
    9. UNIFIED NAVIGATION ROUTING (DESKTOP + MOBILE)

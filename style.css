@@ -712,3 +712,43 @@ footer { margin-top: 90px; padding: 35px 5%; background: #13251f; color: white; 
     .product-grid { grid-template-columns: 1fr; }
     .hero h1 { font-size: 36px; }
 }
+/* =====================================================
+   REALTIME CHAT STYLES & MOBILE TOGGLES
+===================================================== */
+.chat-back-btn {
+    display: none;
+    background: transparent;
+    border: none;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+    cursor: pointer;
+    padding: 0 6px 0 0;
+}
+
+@media (max-width: 768px) {
+    .chat-back-btn {
+        display: inline-block !important;
+    }
+
+    /* By default on mobile, show sidebar thread list */
+    .chat-sidebar {
+        display: flex !important;
+        width: 100% !important;
+        height: 100% !important;
+        border-right: none !important;
+    }
+
+    .chat-window {
+        display: none !important;
+    }
+
+    /* When conversation is active, hide sidebar and show window */
+    .chat-layout.in-conversation .chat-sidebar {
+        display: none !important;
+    }
+
+    .chat-layout.in-conversation .chat-window {
+        display: flex !important;
+    }
+}
