@@ -42,9 +42,10 @@
             <!-- DESKTOP NAV LINKS -->
             <nav class="nav-links desktop-nav">
                 <button class="nav-link active" data-page="home">Home</button>
-                <button class="nav-link" data-page="messages">
+                <button class="nav-link" data-page="messages" style="position: relative;">
                     <svg class="nav-icon-svg" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
                     <span>Messages</span>
+                    <span class="unread-bubble-badge hidden" id="desktopUnreadBadge">0</span>
                 </button>
                 <button class="nav-link sell-nav" data-page="sell">
                     <span class="sell-plus">+</span><span>Sell</span>
@@ -66,9 +67,10 @@
                 <span class="b-icon">🏠</span>
                 <span class="b-text">Home</span>
             </button>
-            <button class="bottom-tab-btn" data-page="messages">
+            <button class="bottom-tab-btn" data-page="messages" style="position: relative;">
                 <span class="b-icon">💬</span>
                 <span class="b-text">Messages</span>
+                <span class="unread-bubble-badge hidden" id="mobileUnreadBadge">0</span>
             </button>
             <button class="bottom-tab-btn bottom-sell-btn" data-page="sell">
                 <div class="b-plus">+</div>
@@ -154,29 +156,24 @@
         </main>
 
         <!-- =====================================================
-             MESSAGES PAGE (RESPONSIVE CHAT)
+             MESSAGES PAGE
         ===================================================== -->
         <main id="messagesPage" class="page">
             <section class="simple-page chat-page">
                 <div class="chat-layout">
-                    <!-- DESKTOP THREADS SIDEBAR -->
+                    <!-- THREADS SIDEBAR -->
                     <div class="chat-sidebar">
                         <div class="chat-header">
                             <h2>Messages</h2>
                         </div>
                         <div class="chat-list" id="chatThreadsList">
-                            <div class="chat-list-item active-chat">
-                                <div class="chat-item-img">📦</div>
-                                <div class="chat-item-details">
-                                    <div class="chat-item-title" id="chatListingTitle">Select an item</div>
-                                    <div class="chat-item-user" id="chatSellerSubtitle">Campus Community</div>
-                                    <div class="chat-item-preview">Tap any product to chat with its seller!</div>
-                                </div>
+                            <div style="padding: 24px; text-align: center; color: #70807a; font-size: 13px;">
+                                Loading conversations...
                             </div>
                         </div>
                     </div>
 
-                    <!-- FULL WIDTH CONVERSATION WINDOW -->
+                    <!-- CONVERSATION WINDOW -->
                     <div class="chat-window">
                         <div class="chat-window-header">
                             <button id="chatBackBtn" class="chat-back-btn" title="Back to inbox">←</button>
@@ -206,8 +203,8 @@
         ===================================================== -->
         <main id="sellPage" class="page">
             <section class="simple-page">
-            
-                <h1>SELL AN ITEM</h1>
+                
+                <h1>Create a Listing</h1>
                 
                 <div class="form-container">
                     <form id="createListingForm">
@@ -296,7 +293,7 @@
                 <button id="closeDetailModal" class="modal-close-btn">&times;</button>
                 <div class="detail-image-box" id="detailImageWrapper" title="Click to zoom image">
                     <img id="detailModalImg" src="" alt="Product">
-                    <span class="zoom-badge">🔍 Tap to Zoom</span>
+                    <span class="zoom-badge">🔍</span>
                 </div>
                 <div class="detail-body">
                     <div class="detail-category" id="detailCategory">Category</div>
@@ -417,10 +414,11 @@
         </footer>
     </div>
 
-    <!-- Firebase Core, Firestore & Auth (v9 compat) -->
+    <!-- Firebase Core, Firestore, Auth & Messaging (v9 compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 
     <!-- App Script -->
     <script src="script.js"></script>

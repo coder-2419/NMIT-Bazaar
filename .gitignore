@@ -1,0 +1,20 @@
+# Node dependencies (Never commit these)
+node_modules/
+functions/node_modules/
+
+# Firebase local caches and runtime logs
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+
+# Operating system & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secret service account keys (if you ever download private admin keys)
+*.json.secret
+*service-account*.json

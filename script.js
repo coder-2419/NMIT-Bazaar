@@ -1,5 +1,5 @@
 /* =====================================================
-   NMIT BAZAAR - CLIENT LOGIC
+   NMIT BAZAAR - CLIENT LOGIC (SPARK FREE TIER)
 ===================================================== */
 console.log("Script connected successfully! 🚀");
 
@@ -15,12 +15,12 @@ const firebaseConfig = {
   appId: "1:1064459826757:web:c6b86ac236559b87d5552c"
 };
 
-// Initialize Firebase
+// Initialize Firebase Core & Services
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Cloudinary Unsigned Upload Settings
+// Cloudinary Settings
 const CLOUDINARY_CLOUD_NAME = "a9wphmyb"; 
 const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";             
 
@@ -30,8 +30,16 @@ let marketplaceItems = [];
 let activeViewingItem = null;
 let authMode = "signin"; // "signin" | "signup" | "reset"
 
+let currentChatId = null;
+let unsubscribeMessages = null;
+let unsubscribeThreads = null;
+let unsubscribeUnreadBadge = null;
+
+let previousUnreadCount = 0;
+let hasRequestedNotificationPermission = false;
+
 /* =====================================================
-   2. INSTANT POP LOADING SCREEN (NO BLOCKERS)
+   2. INSTANT POP LOADING SCREEN
 ===================================================== */
 window.addEventListener("DOMContentLoaded", () => {
     const loadingScreen = document.getElementById("loadingScreen");
@@ -49,7 +57,7 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 
 /* =====================================================
-   3. REAL-TIME FIRESTORE LISTENER
+   3. REAL-TIME FIRESTORE LISTENER (FEED & FAVORITES)
 ===================================================== */
 db.collection("listings").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
     marketplaceItems = [];
@@ -110,7 +118,6 @@ function renderProducts(items) {
     });
 }
 
-// Product Grid Click: Detail Modal or Favorite Toggle
 if (productGrid) {
     productGrid.addEventListener("click", (e) => {
         const favoriteBtn = e.target.closest(".favorite-toggle-btn");
@@ -173,7 +180,6 @@ if (productDetailModal) {
     });
 }
 
-// Fullscreen Image Lightbox
 if (detailImageWrapper && imageLightbox && lightboxImg) {
     detailImageWrapper.addEventListener("click", () => {
         if (detailModalImg.src) {
@@ -187,7 +193,6 @@ if (detailImageWrapper && imageLightbox && lightboxImg) {
     });
 }
 
-// Direct Chat with Seller button inside modal
 if (modalChatSellerBtn) {
     modalChatSellerBtn.addEventListener("click", () => {
         if (!activeViewingItem) return;
@@ -286,12 +291,8 @@ function renderMyListings() {
 }
 
 /* =====================================================
-   8. REAL-TIME CHAT (FIRESTORE THREADS & MESSAGES)
+   8. REAL-TIME CHAT (FIRESTORE)
 ===================================================== */
-let currentChatId = null;
-let unsubscribeMessages = null;
-let unsubscribeThreads = null;
-
 const chatLayout = document.querySelector(".chat-layout");
 const chatBackBtn = document.getElementById("chatBackBtn");
 const chatThreadsList = document.getElementById("chatThreadsList");
@@ -301,7 +302,6 @@ const chatMessages = document.getElementById("chatMessages");
 const chatInput = document.getElementById("chatInput");
 const chatSendBtn = document.getElementById("chatSendBtn");
 
-// 1. Listen for User's Active Chat Threads in Real-Time
 function subscribeToUserChats() {
     if (!currentUser || !chatThreadsList) return;
     if (unsubscribeThreads) unsubscribeThreads();
@@ -349,22 +349,25 @@ function subscribeToUserChats() {
         });
 }
 
-// 2. Open an Existing Conversation Window
 function openChatConversation(chatId, chatData) {
     currentChatId = chatId;
 
-    // Mobile screen view shift
     if (chatLayout) chatLayout.classList.add("in-conversation");
 
-    // Header info
     const otherUserName = (chatData.buyerUid === currentUser.uid) ? chatData.sellerName : chatData.buyerName;
     if (chatHeaderTitle) chatHeaderTitle.textContent = chatData.listingTitle || "Item";
     if (chatHeaderSub) chatHeaderSub.textContent = `₹${chatData.listingPrice || ""} • Chatting with ${otherUserName || "Student"}`;
 
-    // Highlight selected item in sidebar
     document.querySelectorAll(".chat-list-item").forEach(el => el.classList.remove("active-chat"));
 
-    // Real-time listener for messages subcollection
+    // Reset unread count if last message came from the other person
+    if (chatData.lastSenderUid && chatData.lastSenderUid !== currentUser.uid) {
+        db.collection("chats").doc(chatId).update({
+            isRead: true,
+            unreadCount: 0
+        }).catch(err => console.warn("Failed marking chat read:", err));
+    }
+
     if (unsubscribeMessages) unsubscribeMessages();
     if (chatMessages) chatMessages.innerHTML = "";
 
@@ -400,7 +403,6 @@ function openChatConversation(chatId, chatData) {
         });
 }
 
-// 3. Initiate Chat from "Chat with Seller" Button
 async function startChatWithItem(item) {
     if (!currentUser) {
         alert("Please sign in to chat with sellers.");
@@ -420,9 +422,7 @@ async function startChatWithItem(item) {
     const buyerName = currentUser.displayName || currentUser.email.split("@")[0];
     const sellerName = item.sellerName || (item.sellerEmail ? item.sellerEmail.split("@")[0] : "Seller");
 
-    // Standard deterministic Chat ID: listingId_buyerUid
     const chatId = `${item.id}_${buyerUid}`;
-
     const chatDocRef = db.collection("chats").doc(chatId);
     const chatDoc = await chatDocRef.get();
 
@@ -440,10 +440,12 @@ async function startChatWithItem(item) {
             sellerName: sellerName,
             participants: [buyerUid, sellerUid],
             lastMessage: initialText,
+            lastSenderUid: buyerUid,
+            isRead: false,
+            unreadCount: 1,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        // Add introductory message
         await chatDocRef.collection("messages").add({
             senderUid: buyerUid,
             senderName: buyerName,
@@ -456,7 +458,6 @@ async function startChatWithItem(item) {
     openChatConversation(chatId, updatedSnap.data());
 }
 
-// 4. Send Message Function
 async function sendChatMessage() {
     if (!currentUser || !currentChatId || !chatInput) return;
     const text = chatInput.value.trim();
@@ -467,7 +468,6 @@ async function sendChatMessage() {
     try {
         const chatDocRef = db.collection("chats").doc(currentChatId);
 
-        // Add to subcollection
         await chatDocRef.collection("messages").add({
             senderUid: currentUser.uid,
             senderName: currentUser.displayName || currentUser.email.split("@")[0],
@@ -475,9 +475,11 @@ async function sendChatMessage() {
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        // Update preview snippet on the thread doc
         await chatDocRef.update({
             lastMessage: text,
+            lastSenderUid: currentUser.uid,
+            isRead: false,
+            unreadCount: firebase.firestore.FieldValue.increment(1),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
     } catch (err) {
@@ -495,28 +497,14 @@ if (chatInput) {
     });
 }
 
-// Mobile back arrow to thread list
 if (chatBackBtn && chatLayout) {
     chatBackBtn.addEventListener("click", () => {
         chatLayout.classList.remove("in-conversation");
     });
 }
 
-// Subscribe to chats when user logs in / unsubscribe when logged out
-auth.onAuthStateChanged((user) => {
-    if (user) {
-        subscribeToUserChats();
-    } else {
-        if (unsubscribeThreads) unsubscribeThreads();
-        if (unsubscribeMessages) unsubscribeMessages();
-        currentChatId = null;
-        if (chatThreadsList) chatThreadsList.innerHTML = "";
-        if (chatMessages) chatMessages.innerHTML = "";
-    }
-});
-
 /* =====================================================
-   9. UNIFIED NAVIGATION ROUTING (DESKTOP + MOBILE)
+   9. UNIFIED NAVIGATION ROUTING
 ===================================================== */
 const pages = {
     home: document.getElementById("homePage"),
@@ -534,17 +522,14 @@ function switchNavigationTab(targetPage) {
         return;
     }
 
-    // Sync Desktop Nav links
     document.querySelectorAll(".nav-link").forEach(btn => {
         btn.classList.toggle("active", btn.getAttribute("data-page") === targetPage);
     });
 
-    // Sync Mobile Bottom tabs
     document.querySelectorAll(".bottom-tab-btn").forEach(btn => {
         btn.classList.toggle("active", btn.getAttribute("data-page") === targetPage);
     });
 
-    // Display active page
     Object.values(pages).forEach(p => {
         if (p) p.classList.remove("active-page");
     });
@@ -557,12 +542,9 @@ function switchNavigationTab(targetPage) {
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// Bind desktop nav buttons
 document.querySelectorAll(".nav-link").forEach(btn => {
     btn.addEventListener("click", () => switchNavigationTab(btn.getAttribute("data-page")));
 });
-
-// Bind mobile bottom dock buttons
 document.querySelectorAll(".bottom-tab-btn").forEach(btn => {
     btn.addEventListener("click", () => switchNavigationTab(btn.getAttribute("data-page")));
 });
@@ -626,7 +608,7 @@ if (searchButton) {
 }
 
 /* =====================================================
-   12. CREATE LISTING (CLOUDINARY + FIRESTORE)
+   12. CREATE LISTING
 ===================================================== */
 const createListingForm = document.getElementById("createListingForm");
 const itemImageInput = document.getElementById("itemImage");
@@ -724,7 +706,7 @@ if (createListingForm) {
 }
 
 /* =====================================================
-   13. AUTHENTICATION (UNIVERSAL EMAIL, RESET & VERIFICATION)
+   13. AUTHENTICATION & SPARK CLIENT NOTIFICATIONS
 ===================================================== */
 const desktopProfileNavLink = document.getElementById("desktopProfileNavLink");
 const bottomProfileTab = document.getElementById("bottomProfileTab");
@@ -752,15 +734,32 @@ auth.onAuthStateChanged(async (user) => {
         if (bottomProfileTab) bottomProfileTab.classList.remove("hidden");
 
         await loadUserProfile(user.uid);
+        requestNativeNotificationPermission();
+        monitorUnreadMessages(user.uid);
+        subscribeToUserChats();
     } else {
         if (authBtn) authBtn.textContent = "Sign In";
         if (desktopProfileNavLink) desktopProfileNavLink.classList.add("hidden");
         if (bottomProfileTab) bottomProfileTab.classList.add("hidden");
 
+        if (unsubscribeThreads) unsubscribeThreads();
+        if (unsubscribeMessages) unsubscribeMessages();
+        if (unsubscribeUnreadBadge) unsubscribeUnreadBadge();
+
+        currentChatId = null;
+        if (chatThreadsList) chatThreadsList.innerHTML = "";
+        if (chatMessages) chatMessages.innerHTML = "";
+
         document.getElementById("userNameDisplay").textContent = "—";
         document.getElementById("userProgramDisplay").textContent = "Program not set";
         document.getElementById("userDeptDisplay").textContent = "Department not set";
         document.getElementById("userYearDisplay").textContent = "—";
+
+        // Hide badges
+        const dBadge = document.getElementById("desktopUnreadBadge");
+        const mBadge = document.getElementById("mobileUnreadBadge");
+        if (dBadge) dBadge.classList.add("hidden");
+        if (mBadge) mBadge.classList.add("hidden");
     }
 });
 
@@ -780,6 +779,75 @@ async function loadUserProfile(uid) {
         console.error("Error loading user profile:", e);
         return false;
     }
+}
+
+// Native Browser Notifications (Zero Backend / Free Spark Plan)
+async function requestNativeNotificationPermission() {
+    if (!("Notification" in window) || hasRequestedNotificationPermission) return;
+    try {
+        if (Notification.permission === "default") {
+            await Notification.requestPermission();
+        }
+        hasRequestedNotificationPermission = true;
+    } catch (e) {
+        console.warn("Notification permission request error:", e);
+    }
+}
+
+// Real-Time Unread Message Monitor (Red Badge + Banner Alert)
+function monitorUnreadMessages(uid) {
+    const desktopBadge = document.getElementById("desktopUnreadBadge");
+    const mobileBadge = document.getElementById("mobileUnreadBadge");
+
+    if (unsubscribeUnreadBadge) unsubscribeUnreadBadge();
+
+    unsubscribeUnreadBadge = db.collection("chats")
+        .where("participants", "array-contains", uid)
+        .onSnapshot((snapshot) => {
+            let totalUnread = 0;
+            let newestIncomingMessage = null;
+
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.lastSenderUid && data.lastSenderUid !== uid && data.isRead === false) {
+                    totalUnread += (data.unreadCount || 1);
+                    if (!newestIncomingMessage || (data.updatedAt && data.updatedAt > newestIncomingMessage.updatedAt)) {
+                        newestIncomingMessage = data;
+                    }
+                }
+            });
+
+            const updateBadge = (el) => {
+                if (!el) return;
+                if (totalUnread > 0) {
+                    el.textContent = totalUnread > 99 ? "99+" : totalUnread;
+                    el.classList.remove("hidden");
+                } else {
+                    el.classList.add("hidden");
+                }
+            };
+
+            updateBadge(desktopBadge);
+            updateBadge(mobileBadge);
+
+            // Trigger notification alert if new unread message arrives
+            if (totalUnread > previousUnreadCount && newestIncomingMessage) {
+                if ("Notification" in window && Notification.permission === "granted") {
+                    const senderTitle = newestIncomingMessage.buyerUid === uid 
+                        ? newestIncomingMessage.sellerName 
+                        : newestIncomingMessage.buyerName;
+
+                    new Notification(`New message from ${senderTitle || "Student"}`, {
+                        body: newestIncomingMessage.lastMessage || "Sent an item inquiry.",
+                        icon: "nmit-logo.png"
+                    });
+                }
+            }
+
+            previousUnreadCount = totalUnread;
+        }, (err) => {
+            console.error("Badge sync error:", err);
+        });
 }
 
 function setAuthMode(mode) {
@@ -860,7 +928,7 @@ if (authForm) {
                 const userCredential = await auth.createUserWithEmailAndPassword(email, password);
                 await userCredential.user.sendEmailVerification();
 
-                alert(`Account created! A verification link has been sent to ${email}. Please check your Inbox and Spam folder.`);
+                alert(`Account created! A verification link has been sent to ${email}.`);
 
                 closeAuthModalHandler();
                 switchNavigationTab("profile");

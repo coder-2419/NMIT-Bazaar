@@ -23,7 +23,7 @@ body { font-family: "DM Sans", sans-serif; background: var(--background); color:
 .app { min-height: 100vh; }
 
 /* =====================================================
-   POP LOADING SCREEN (INSTANT DISMISSAL)
+   POP LOADING SCREEN
 ===================================================== */
 .loading-screen {
     position: fixed;
@@ -351,7 +351,7 @@ body { font-family: "DM Sans", sans-serif; background: var(--background); color:
 }
 
 /* =====================================================
-   MESSAGES & CHAT UI (DESKTOP DEFAULT)
+   MESSAGES & CHAT UI
 ===================================================== */
 .page { display: none; }
 .page.active-page { display: block; }
@@ -413,6 +413,47 @@ body { font-family: "DM Sans", sans-serif; background: var(--background); color:
 .chat-input-area { padding: 16px 20px; background: white; border-top: 1px solid var(--border); display: flex; gap: 10px; }
 .chat-input { flex: 1; padding: 12px 18px; border: 1px solid var(--border); border-radius: 25px; outline: none; font-family: inherit; }
 .chat-send-btn { width: 44px; height: 44px; border-radius: 50%; background: var(--green); color: white; border: none; font-size: 16px; cursor: pointer; display: grid; place-items: center; }
+
+.chat-back-btn {
+    display: none;
+    background: transparent;
+    border: none;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+    cursor: pointer;
+    padding: 0 8px 0 0;
+}
+
+/* =====================================================
+   NOTIFICATION BADGE (RED COUNT BUBBLE)
+===================================================== */
+.unread-bubble-badge {
+    position: absolute;
+    top: 2px;
+    right: 8px;
+    background-color: #e53935;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 800;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    box-shadow: 0 2px 6px rgba(229, 57, 53, 0.45);
+    border: 1.5px solid #ffffff;
+    pointer-events: none;
+    z-index: 20;
+    animation: popBadge 0.25s ease-out;
+}
+
+@keyframes popBadge {
+    0% { transform: scale(0.4); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
 
 /* =====================================================
    CREATE LISTING FORM
@@ -515,7 +556,6 @@ footer { margin-top: 90px; padding: 35px 5%; background: #13251f; color: white; 
    MOBILE OPTIMIZATIONS (APP DOCK & 100% WIDTH CHAT)
 ===================================================== */
 @media (max-width: 768px) {
-    /* Hide top nav links on mobile */
     .desktop-nav {
         display: none !important;
     }
@@ -526,26 +566,12 @@ footer { margin-top: 90px; padding: 35px 5%; background: #13251f; color: white; 
         justify-content: space-between;
     }
 
-    .brand-logo {
-        width: 36px;
-        height: 40px;
-    }
+    .brand-logo { width: 36px; height: 40px; }
+    .brand-name { font-size: 16px; }
+    .brand-subtitle { display: none; }
+    .auth-nav-btn { padding: 6px 12px; font-size: 11px; border-radius: 8px; }
 
-    .brand-name {
-        font-size: 16px;
-    }
-
-    .brand-subtitle {
-        display: none;
-    }
-
-    .auth-nav-btn {
-        padding: 6px 12px;
-        font-size: 11px;
-        border-radius: 8px;
-    }
-
-    /* Fixed Native Mobile Bottom Dock */
+    /* Mobile Bottom Dock */
     .mobile-bottom-nav {
         display: flex;
         position: fixed;
@@ -577,27 +603,17 @@ footer { margin-top: 90px; padding: 35px 5%; background: #13251f; color: white; 
         color: #70807a;
     }
 
-    .bottom-tab-btn .b-icon {
-        font-size: 20px;
-        line-height: 1;
-    }
+    .bottom-tab-btn .b-icon { font-size: 20px; line-height: 1; }
+    .bottom-tab-btn .b-text { font-size: 10px; font-weight: 700; letter-spacing: 0.2px; }
+    .bottom-tab-btn.active { color: var(--green); }
 
-    .bottom-tab-btn .b-text {
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 0.2px;
-    }
-
-    .bottom-tab-btn.active {
-        color: var(--green);
+    .bottom-tab-btn .unread-bubble-badge {
+        top: 2px;
+        right: 18px;
     }
 
     /* Raised Floating Sell Button */
-    .bottom-sell-btn {
-        position: relative;
-        top: -12px;
-    }
-
+    .bottom-sell-btn { position: relative; top: -12px; }
     .bottom-sell-btn .b-plus {
         width: 44px;
         height: 44px;
@@ -613,15 +629,9 @@ footer { margin-top: 90px; padding: 35px 5%; background: #13251f; color: white; 
         line-height: 1;
         margin-bottom: 2px;
     }
+    .bottom-sell-btn .b-text { color: var(--green-dark); font-weight: 800; }
 
-    .bottom-sell-btn .b-text {
-        color: var(--green-dark);
-        font-weight: 800;
-    }
-
-    /* =====================================================
-       FULL-WIDTH MOBILE CHAT INTERFACE
-    ===================================================== */
+    /* Full-Screen Mobile Chat Layout */
     .simple-page.chat-page {
         width: 100% !important;
         max-width: 100% !important;
@@ -639,17 +649,31 @@ footer { margin-top: 90px; padding: 35px 5%; background: #13251f; color: white; 
         position: relative !important;
     }
 
-    /* Hide sidebar completely so conversation takes 100% width */
+    .chat-back-btn {
+        display: inline-block !important;
+    }
+
+    /* By default on mobile: show list of threads */
     .chat-sidebar {
-        display: none !important;
+        display: flex !important;
+        width: 100% !important;
+        height: 100% !important;
+        border-right: none !important;
     }
 
     .chat-window {
+        display: none !important;
+    }
+
+    /* When conversation is selected: show chat conversation window */
+    .chat-layout.in-conversation .chat-sidebar {
+        display: none !important;
+    }
+
+    .chat-layout.in-conversation .chat-window {
         display: flex !important;
-        flex-direction: column !important;
         width: 100% !important;
         height: 100% !important;
-        flex: 1 !important;
     }
 
     .chat-window-header {
@@ -665,9 +689,7 @@ footer { margin-top: 90px; padding: 35px 5%; background: #13251f; color: white; 
         max-width: 220px !important;
     }
 
-    .chat-window-info span {
-        font-size: 11px !important;
-    }
+    .chat-window-info span { font-size: 11px !important; }
 
     .chat-messages {
         flex: 1 !important;
@@ -688,67 +710,16 @@ footer { margin-top: 90px; padding: 35px 5%; background: #13251f; color: white; 
         background: #ffffff !important;
     }
 
-    .chat-input {
-        padding: 10px 14px !important;
-        font-size: 14px !important;
-    }
-
-    .chat-send-btn {
-        width: 42px !important;
-        height: 42px !important;
-        flex-shrink: 0 !important;
-    }
+    .chat-input { padding: 10px 14px !important; font-size: 14px !important; }
+    .chat-send-btn { width: 42px !important; height: 42px !important; flex-shrink: 0 !important; }
 
     .category-grid { grid-template-columns: repeat(3, 1fr); }
     .product-grid { grid-template-columns: repeat(2, 1fr); }
-
-    footer {
-        padding-bottom: 80px;
-    }
+    footer { padding-bottom: 80px; }
 }
 
 @media (max-width: 500px) {
     .category-grid { grid-template-columns: repeat(2, 1fr); }
     .product-grid { grid-template-columns: 1fr; }
     .hero h1 { font-size: 36px; }
-}
-/* =====================================================
-   REALTIME CHAT STYLES & MOBILE TOGGLES
-===================================================== */
-.chat-back-btn {
-    display: none;
-    background: transparent;
-    border: none;
-    font-size: 22px;
-    font-weight: 800;
-    color: var(--text);
-    cursor: pointer;
-    padding: 0 6px 0 0;
-}
-
-@media (max-width: 768px) {
-    .chat-back-btn {
-        display: inline-block !important;
-    }
-
-    /* By default on mobile, show sidebar thread list */
-    .chat-sidebar {
-        display: flex !important;
-        width: 100% !important;
-        height: 100% !important;
-        border-right: none !important;
-    }
-
-    .chat-window {
-        display: none !important;
-    }
-
-    /* When conversation is active, hide sidebar and show window */
-    .chat-layout.in-conversation .chat-sidebar {
-        display: none !important;
-    }
-
-    .chat-layout.in-conversation .chat-window {
-        display: flex !important;
-    }
 }
