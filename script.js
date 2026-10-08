@@ -767,7 +767,7 @@ auth.onAuthStateChanged(async (user) => {
 
         renderMyListings();
         renderFavorites();
-        
+
     } else {
         if (authBtn) authBtn.textContent = "Sign In";
         if (desktopProfileNavLink) desktopProfileNavLink.classList.add("hidden");
@@ -1076,17 +1076,26 @@ const tabContents = document.querySelectorAll(".tab-content");
 
 profileTabs.forEach(tab => {
     tab.addEventListener("click", () => {
+        const targetTabName = tab.getAttribute("data-tab"); // "favorites" or "listings"
+
+        // 1. Update button styling
         profileTabs.forEach(t => t.classList.remove("active"));
-        tabContents.forEach(c => c.classList.remove("active-tab", "hidden"));
-
         tab.classList.add("active");
-        const targetTabName = tab.getAttribute("data-tab");
-        const target = document.getElementById(targetTabName + "Tab");
-        
-        tabContents.forEach(c => c.classList.add("hidden"));
-        if (target) target.classList.remove("hidden");
 
-        // Re-render data specifically when opening the tab
+        // 2. Hide all tab content panes
+        tabContents.forEach(pane => {
+            pane.classList.remove("active-tab");
+            pane.classList.add("hidden");
+        });
+
+        // 3. Show targeted pane
+        const targetPane = document.getElementById(targetTabName + "Tab");
+        if (targetPane) {
+            targetPane.classList.remove("hidden");
+            targetPane.classList.add("active-tab");
+        }
+
+        // 4. Force re-render the content
         if (targetTabName === "listings") {
             renderMyListings();
         } else if (targetTabName === "favorites") {
