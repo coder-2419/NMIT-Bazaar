@@ -1,4 +1,4 @@
-console.log("Script initialized with user-scoped favorites and email verification gate 🚀");
+console.log("Script initialized with email verification gate 🚀");
 
 
 const firebaseConfig = {
@@ -17,7 +17,7 @@ const auth = firebase.auth();
 
 
 const CLOUDINARY_CLOUD_NAME = "a9wphmyb"; 
-const CLOUDINARY_UPLOAD_PRESET = "NMIT-Bazaar";             
+const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";             
 
 
 let currentUser = null;
