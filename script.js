@@ -1069,14 +1069,24 @@ if (editProfileForm) {
 
 const profileTabs = document.querySelectorAll(".profile-tab");
 const tabContents = document.querySelectorAll(".tab-content");
+
 profileTabs.forEach(tab => {
     tab.addEventListener("click", () => {
         profileTabs.forEach(t => t.classList.remove("active"));
         tabContents.forEach(c => c.classList.remove("active-tab", "hidden"));
 
         tab.classList.add("active");
-        const target = document.getElementById(tab.getAttribute("data-tab") + "Tab");
+        const targetTabName = tab.getAttribute("data-tab");
+        const target = document.getElementById(targetTabName + "Tab");
+        
         tabContents.forEach(c => c.classList.add("hidden"));
         if (target) target.classList.remove("hidden");
+
+        // Re-render data specifically when opening the tab
+        if (targetTabName === "listings") {
+            renderMyListings();
+        } else if (targetTabName === "favorites") {
+            renderFavorites();
+        }
     });
 });
