@@ -256,22 +256,37 @@ if (favoritesTab) {
         }
     });
 }
-
 /* =====================================================
-   7. MY LISTINGS (PROFILE TAB)
+   7. MY LISTINGS (ROBUST PROFILE TAB RENDERER)
 ===================================================== */
 function renderMyListings() {
     const myListingsGrid = document.getElementById("myListingsGrid");
     if (!myListingsGrid) return;
 
+    // Check auth status
     if (!currentUser) {
-        myListingsGrid.innerHTML = `<p style="grid-column: 1/-1; text-align:center; color:#70807a; padding:40px;">Please sign in to view your listings.</p>`;
+        myListingsGrid.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; color: #70807a; padding: 40px;">
+                <p>Please sign in to view your listings.</p>
+                <button type="button" class="secondary-button" style="margin-top: 10px;" onclick="openAuthModal('signin')">Sign In</button>
+            </div>`;
         return;
     }
 
-    const myItems = marketplaceItems.filter(i => i.sellerUid === currentUser.uid);
+    // Filter items owned by the current user (checking common UID keys)
+    const myItems = marketplaceItems.filter(item => {
+        return item.sellerUid === currentUser.uid || 
+               item.userId === currentUser.uid ||
+               (item.sellerEmail && item.sellerEmail.toLowerCase() === currentUser.email?.toLowerCase());
+    });
+
     if (myItems.length === 0) {
-        myListingsGrid.innerHTML = `<p style="grid-column: 1/-1; text-align:center; color:#70807a; padding:40px;">You haven't listed any items yet.</p>`;
+        myListingsGrid.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; color: #70807a; padding: 40px;">
+                <h3>No Listings Found</h3>
+                <p>You haven't posted any items for sale yet.</p>
+                <button type="button" class="primary-button" style="margin-top: 15px;" onclick="switchNavigationTab('sell')">+ Sell an Item</button>
+            </div>`;
         return;
     }
 
@@ -279,13 +294,25 @@ function renderMyListings() {
     myItems.forEach(item => {
         const card = document.createElement("article");
         card.className = "product-card";
+        card.setAttribute("data-id", item.id);
+
+        const imageContent = item.imageUrl
+            ? `<img src="${item.imageUrl}" alt="${item.name}">`
+            : `<div style="font-size: 48px;">📦</div>`;
+
         card.innerHTML = `
-            <div class="product-image"><img src="${item.imageUrl || ''}" alt=""></div>
+            <div class="product-image">${imageContent}</div>
             <div class="product-info">
-                <div class="product-category">${item.category}</div>
-                <div class="product-name">${item.name}</div>
-                <span class="product-price">₹${item.price}</span>
+                <div class="product-category">${item.category || "General"}</div>
+                <div class="product-name">${item.name || "Untitled Item"}</div>
+                <span class="product-price">₹${item.price || 0}</span>
             </div>`;
+
+        // Click to view item details
+        card.addEventListener("click", () => {
+            openProductDetailModal(item.id);
+        });
+
         myListingsGrid.appendChild(card);
     });
 }
