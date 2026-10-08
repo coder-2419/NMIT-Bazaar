@@ -764,6 +764,10 @@ auth.onAuthStateChanged(async (user) => {
         requestNativeNotificationPermission();
         monitorUnreadMessages(user.uid);
         subscribeToUserChats();
+
+        renderMyListings();
+        renderFavorites();
+        
     } else {
         if (authBtn) authBtn.textContent = "Sign In";
         if (desktopProfileNavLink) desktopProfileNavLink.classList.add("hidden");
