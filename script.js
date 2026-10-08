@@ -2,11 +2,12 @@ console.log("Script initialized with user-scoped favorites and email verificatio
 
 
 const firebaseConfig = {
-    apiKey: "YOUR_FIREBASE_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCz5jwtnPd-zw32eGhF7LCtR59WNYQ4cnE",
+  authDomain: "nmit-bazaar.firebaseapp.com",
+  projectId: "nmit-bazaar",
+  storageBucket: "nmit-bazaar.firebasestorage.app",
+  messagingSenderId: "1064459826757",
+  appId: "1:1064459826757:web:c6b86ac236559b87d5552c"
 };
 
 
@@ -15,8 +16,8 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 
 
-const CLOUDINARY_CLOUD_NAME = "YOUR_CLOUDINARY_CLOUD_NAME"; 
-const CLOUDINARY_UPLOAD_PRESET = "nmit_bazaar";             
+const CLOUDINARY_CLOUD_NAME = "a9wphmyb"; 
+const CLOUDINARY_UPLOAD_PRESET = "NMIT-Bazaar";             
 
 
 let currentUser = null;
