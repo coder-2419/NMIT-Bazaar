@@ -27,6 +27,7 @@ const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";
 // State Variables
 let currentUser = null;
 let marketplaceItems = [];
+let allUserListings = [];
 let activeViewingItem = null;
 let activeSelectedCategory = null;
 let authMode = "signin";
@@ -40,7 +41,7 @@ let previousUnreadCount = 0;
 let hasRequestedNotificationPermission = false;
 
 /* =====================================================
-   2. LIVE ONLINE FOREIGN EXCHANGE RATES (NO HARDCODING)
+   2. LIVE ONLINE FOREIGN EXCHANGE RATES
 ===================================================== */
 let liveExchangeRatesToINR = {
     INR: 1,
@@ -56,7 +57,6 @@ async function fetchDailyExchangeRates() {
     const cachedRates = localStorage.getItem(CACHE_KEY);
     const cachedTime = localStorage.getItem(CACHE_TIME_KEY);
 
-    // Use cached rate if fetched within 6 hours
     if (cachedRates && cachedTime && (Date.now() - Number(cachedTime) < SIX_HOURS)) {
         try {
             liveExchangeRatesToINR = JSON.parse(cachedRates);
@@ -67,7 +67,6 @@ async function fetchDailyExchangeRates() {
     }
 
     try {
-        // Fetch daily exchange rates online
         const res = await fetch("https://open.er-api.com/v6/latest/USD");
         if (!res.ok) throw new Error("Network response was not ok");
         
@@ -112,7 +111,6 @@ function formatMarketplacePrice(item) {
     return `₹${inrVal.toLocaleString("en-IN")} <span class="currency-original-note">(${symbol}${item.price})</span>`;
 }
 
-// Initial fetch on boot
 fetchDailyExchangeRates();
 
 /* =====================================================
@@ -138,11 +136,18 @@ window.addEventListener("DOMContentLoaded", () => {
 ===================================================== */
 db.collection("listings").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
     marketplaceItems = [];
+    allUserListings = [];
+
     snapshot.forEach((doc) => {
-        marketplaceItems.push({
-            id: doc.id,
-            ...doc.data()
-        });
+        const data = doc.data();
+        const itemObj = { id: doc.id, ...data };
+        
+        allUserListings.push(itemObj);
+
+        // FILTER OUT SOLD ITEMS FROM PUBLIC FEED
+        if (data.isSold !== true) {
+            marketplaceItems.push(itemObj);
+        }
     });
     
     // Filter by active category if selected, otherwise render all
@@ -237,7 +242,7 @@ const imageLightbox = document.getElementById("imageLightbox");
 const lightboxImg = document.getElementById("lightboxImg");
 
 function openProductDetailModal(itemId) {
-    const item = marketplaceItems.find(i => i.id === itemId);
+    const item = allUserListings.find(i => i.id === itemId) || marketplaceItems.find(i => i.id === itemId);
     if (!item || !productDetailModal) return;
 
     activeViewingItem = item;
@@ -289,7 +294,7 @@ if (modalChatSellerBtn) {
    7. FAVORITES LOGIC
 ===================================================== */
 function toggleFavorite(itemId) {
-    const item = marketplaceItems.find(i => i.id === itemId);
+    const item = allUserListings.find(i => i.id === itemId) || marketplaceItems.find(i => i.id === itemId);
     if (!item) return;
 
     db.collection("listings").doc(itemId).update({
@@ -330,8 +335,9 @@ function renderFavorites() {
     });
 }
 
-if (favoritesTab) {
-    favoritesTab.addEventListener("click", (e) => {
+const favoritesTabElem = document.getElementById("favoritesTab");
+if (favoritesTabElem) {
+    favoritesTabElem.addEventListener("click", (e) => {
         const removeBtn = e.target.closest(".favorite-icon-active");
         if (removeBtn) {
             const itemId = removeBtn.getAttribute("data-id");
@@ -341,7 +347,7 @@ if (favoritesTab) {
 }
 
 /* =====================================================
-   8. MY LISTINGS (EDIT, DELETE & SOLD TOGGLE)
+   8. MY LISTINGS (RETAINS ALL SELLER LISTINGS INCLUDING SOLD)
 ===================================================== */
 function renderMyListings() {
     const myListingsGrid = document.getElementById("myListingsGrid");
@@ -356,7 +362,7 @@ function renderMyListings() {
         return;
     }
 
-    const myItems = marketplaceItems.filter(item => {
+    const myItems = allUserListings.filter(item => {
         return item.sellerUid === currentUser.uid || 
                item.userId === currentUser.uid ||
                (item.sellerEmail && item.sellerEmail.toLowerCase() === currentUser.email?.toLowerCase());
@@ -663,6 +669,11 @@ async function startChatWithItem(item) {
     if (item.sellerUid === currentUser.uid) {
         alert("This is your own listing!");
         return;
+    }
+
+    // Trigger permission dialog on direct gesture
+    if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
     }
 
     switchNavigationTab("messages");
@@ -973,6 +984,7 @@ if (createListingForm) {
 const desktopProfileNavLink = document.getElementById("desktopProfileNavLink");
 const bottomProfileTab = document.getElementById("bottomProfileTab");
 const authBtn = document.getElementById("authBtn");
+const mobileAuthBtn = document.getElementById("mobileAuthBtn");
 const authModal = document.getElementById("authModal");
 const closeAuthModal = document.getElementById("closeAuthModal");
 const authForm = document.getElementById("authForm");
@@ -988,21 +1000,25 @@ const tabSignUp = document.getElementById("tabSignUp");
 const authTabsContainer = document.getElementById("authTabsContainer");
 const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
 
+function updateAuthButtonTexts(text) {
+    if (authBtn) authBtn.textContent = text;
+    if (mobileAuthBtn) mobileAuthBtn.textContent = text;
+}
+
 auth.onAuthStateChanged(async (user) => {
     currentUser = user;
     if (user) {
-        if (authBtn) authBtn.textContent = "Sign Out";
+        updateAuthButtonTexts("Sign Out");
         if (desktopProfileNavLink) desktopProfileNavLink.classList.remove("hidden");
         if (bottomProfileTab) bottomProfileTab.classList.remove("hidden");
 
         await loadUserProfile(user.uid);
-        requestNativeNotificationPermission();
         monitorUnreadMessages(user.uid);
         subscribeToUserChats();
         renderMyListings();
         renderFavorites();
     } else {
-        if (authBtn) authBtn.textContent = "Sign In";
+        updateAuthButtonTexts("Sign In");
         if (desktopProfileNavLink) desktopProfileNavLink.classList.add("hidden");
         if (bottomProfileTab) bottomProfileTab.classList.add("hidden");
 
@@ -1041,18 +1057,6 @@ async function loadUserProfile(uid) {
     } catch (e) {
         console.error("Error loading profile:", e);
         return false;
-    }
-}
-
-async function requestNativeNotificationPermission() {
-    if (!("Notification" in window) || hasRequestedNotificationPermission) return;
-    try {
-        if (Notification.permission === "default") {
-            await Notification.requestPermission();
-        }
-        hasRequestedNotificationPermission = true;
-    } catch (e) {
-        console.warn("Notification permission error:", e);
     }
 }
 
@@ -1097,10 +1101,19 @@ function monitorUnreadMessages(uid) {
                         ? newestIncomingMessage.sellerName 
                         : newestIncomingMessage.buyerName;
 
-                    new Notification(`New message from ${senderTitle || "Student"}`, {
-                        body: newestIncomingMessage.lastMessage || "Sent an item inquiry.",
-                        icon: "nmit-logo.png"
-                    });
+                    try {
+                        const notif = new Notification(`New message from ${senderTitle || "Student"}`, {
+                            body: newestIncomingMessage.lastMessage || "Sent an inquiry on NMIT Bazaar.",
+                            icon: "nmit-logo.png",
+                            badge: "nmit-logo.png"
+                        });
+                        notif.onclick = () => {
+                            window.focus();
+                            switchNavigationTab("messages");
+                        };
+                    } catch (e) {
+                        console.warn("Notification constructor error:", e);
+                    }
                 }
             }
 
@@ -1156,18 +1169,18 @@ if (tabSignUp) tabSignUp.addEventListener("click", () => setAuthMode("signup"));
 if (forgotPasswordBtn) forgotPasswordBtn.addEventListener("click", () => setAuthMode("reset"));
 if (closeAuthModal) closeAuthModal.addEventListener("click", closeAuthModalHandler);
 
-if (authBtn) {
-    authBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        if (currentUser) {
-            if (confirm("Do you want to sign out?")) {
-                auth.signOut().then(() => switchNavigationTab("home"));
-            }
-        } else {
-            openAuthModal("signin");
+function handleAuthButtonClick() {
+    if (currentUser) {
+        if (confirm("Do you want to sign out?")) {
+            auth.signOut().then(() => switchNavigationTab("home"));
         }
-    });
+    } else {
+        openAuthModal("signin");
+    }
 }
+
+if (authBtn) authBtn.addEventListener("click", handleAuthButtonClick);
+if (mobileAuthBtn) mobileAuthBtn.addEventListener("click", handleAuthButtonClick);
 
 if (authForm) {
     authForm.addEventListener("submit", async (e) => {
@@ -1188,18 +1201,33 @@ if (authForm) {
                 const userCredential = await auth.createUserWithEmailAndPassword(email, password);
                 await userCredential.user.sendEmailVerification();
 
-                alert(`Account created! A verification link has been sent to ${email}.`);
+                alert(`Account created! A verification link has been sent to ${email}.\n\n⚠️ Check Spam or Promotions if it doesn't appear within 1 minute, and tap "Report Not Spam".`);
                 closeAuthModalHandler();
                 switchNavigationTab("profile");
                 setTimeout(() => openEditProfileModalForSetup(), 300);
             } else {
-                const userCredential = await auth.signInWithEmailAndPassword(email, password);
-                closeAuthModalHandler();
+                // SIGN IN WITH EXPLICIT UNREGISTERED ACCOUNT CHECK
+                try {
+                    const userCredential = await auth.signInWithEmailAndPassword(email, password);
 
-                const profileExists = await loadUserProfile(userCredential.user.uid);
-                switchNavigationTab("profile");
-                if (!profileExists) {
-                    setTimeout(() => openEditProfileModalForSetup(), 300);
+                    if ("Notification" in window && Notification.permission === "default") {
+                        Notification.requestPermission();
+                    }
+
+                    closeAuthModalHandler();
+                    const profileExists = await loadUserProfile(userCredential.user.uid);
+                    switchNavigationTab("profile");
+                    if (!profileExists) {
+                        setTimeout(() => openEditProfileModalForSetup(), 300);
+                    }
+                } catch (loginErr) {
+                    if (loginErr.code === "auth/user-not-found" || loginErr.code === "auth/invalid-credential") {
+                        throw new Error("Account not registered. Please register first.");
+                    } else if (loginErr.code === "auth/wrong-password") {
+                        throw new Error("Incorrect password. Please try again or reset your password.");
+                    } else {
+                        throw loginErr;
+                    }
                 }
             }
         } catch (err) {
