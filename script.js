@@ -1,26 +1,28 @@
-console.log("Script initialized with email verification gate 🚀");
+console.log("Script initialized with user-scoped favorites and email verification gate 🚀");
+
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCz5jwtnPd-zw32eGhF7LCtR59WNYQ4cnE",
-  authDomain: "nmit-bazaar.firebaseapp.com",
-  projectId: "nmit-bazaar",
-  storageBucket: "nmit-bazaar.firebasestorage.app",
-  messagingSenderId: "1064459826757",
-  appId: "1:1064459826757:web:c6b86ac236559b87d5552c"
+    apiKey: "YOUR_FIREBASE_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID"
 };
 
-firebase.initializeApp(firebaseConfig);
 
+firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-const CLOUDINARY_CLOUD_NAME = "a9wphmyb";
-const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";
+
+const CLOUDINARY_CLOUD_NAME = "YOUR_CLOUDINARY_CLOUD_NAME"; 
+const CLOUDINARY_UPLOAD_PRESET = "nmit_bazaar";             
+
 
 let currentUser = null;
 let marketplaceItems = [];
 let allUserListings = [];
-let userFavoriteIds = new Set();
+let userFavoriteIds = new Set(); 
 let activeViewingItem = null;
 let activeSelectedCategory = null;
 let authMode = "signin";
@@ -33,6 +35,7 @@ let unsubscribeUserFavorites = null;
 
 let previousUnreadCount = 0;
 let hasRequestedNotificationPermission = false;
+
 
 let liveExchangeRatesToINR = {
     INR: 1,
@@ -48,11 +51,7 @@ async function fetchDailyExchangeRates() {
     const cachedRates = localStorage.getItem(CACHE_KEY);
     const cachedTime = localStorage.getItem(CACHE_TIME_KEY);
 
-    if (
-        cachedRates &&
-        cachedTime &&
-        Date.now() - Number(cachedTime) < SIX_HOURS
-    ) {
+    if (cachedRates && cachedTime && (Date.now() - Number(cachedTime) < SIX_HOURS)) {
         try {
             liveExchangeRatesToINR = JSON.parse(cachedRates);
             return;
@@ -63,18 +62,12 @@ async function fetchDailyExchangeRates() {
 
     try {
         const res = await fetch("https://open.er-api.com/v6/latest/USD");
-
-        if (!res.ok) {
-            throw new Error("Network response was not ok");
-        }
-
+        if (!res.ok) throw new Error("Network response was not ok");
+        
         const data = await res.json();
-
         if (data && data.rates && data.rates.INR) {
             const inrPerUsd = data.rates.INR;
-            const inrPerEur = data.rates.EUR
-                ? inrPerUsd / data.rates.EUR
-                : inrPerUsd * 1.08;
+            const inrPerEur = data.rates.EUR ? (inrPerUsd / data.rates.EUR) : (inrPerUsd * 1.08);
 
             liveExchangeRatesToINR = {
                 INR: 1,
@@ -82,2049 +75,1321 @@ async function fetchDailyExchangeRates() {
                 EUR: Number(inrPerEur.toFixed(2))
             };
 
-            localStorage.setItem(
-                CACHE_KEY,
-                JSON.stringify(liveExchangeRatesToINR)
-            );
+            localStorage.setItem(CACHE_KEY, JSON.stringify(liveExchangeRatesToINR));
+            localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+            console.log("Live market exchange rates online sync completed:", liveExchangeRatesToINR);
 
-            localStorage.setItem(
-                CACHE_TIME_KEY,
-                String(Date.now())
-            );
+            if (marketplaceItems.length > 0) {
+                renderProducts(marketplaceItems);
+            }
         }
-    } catch (error) {
-        console.warn("Exchange rate update failed:", error);
+    } catch (err) {
+        console.warn("Live currency rates online fetch failed, using fallback:", err);
     }
 }
 
-function convertToINR(amount, currency) {
-    const value = Number(amount) || 0;
-    const rate = liveExchangeRatesToINR[currency] || 1;
-    return value * rate;
+function getPriceInRupees(price, currency = "INR") {
+    const curr = (currency || "INR").toUpperCase();
+    const rate = liveExchangeRatesToINR[curr] || 1;
+    return Math.round(Number(price) * rate);
 }
 
 function formatMarketplacePrice(item) {
-    if (!item) return "₹0";
-
-    const amount = Number(item.price) || 0;
-    const currency = item.currency || "INR";
-
-    if (currency === "INR") {
-        return `₹${amount.toLocaleString("en-IN")}`;
+    const inrVal = getPriceInRupees(item.price, item.currency || "INR");
+    const curr = (item.currency || "INR").toUpperCase();
+    
+    if (curr === "INR") {
+        return `₹${inrVal.toLocaleString("en-IN")}`;
     }
-
-    const inrValue = convertToINR(amount, currency);
-
-    return `₹${Math.round(inrValue).toLocaleString("en-IN")}`;
+    const symbol = curr === "USD" ? "$" : (curr === "EUR" ? "€" : curr);
+    return `₹${inrVal.toLocaleString("en-IN")} <span class="currency-original-note">(${symbol}${item.price})</span>`;
 }
 
-function getOriginalPriceText(item) {
-    if (!item) return "";
+fetchDailyExchangeRates();
 
-    const amount = Number(item.price) || 0;
-    const currency = item.currency || "INR";
 
-    if (currency === "INR") {
-        return `₹${amount.toLocaleString("en-IN")}`;
-    }
-
-    return `${currency} ${amount.toLocaleString("en-IN")}`;
-}
-
-function escapeHTML(value) {
-    if (value === undefined || value === null) {
-        return "";
-    }
-
-    return String(value)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-function getUserDisplayName(user) {
-    if (!user) return "User";
-
-    return (
-        user.displayName ||
-        user.email?.split("@")[0] ||
-        "User"
-    );
-}
-
-function getItemSellerName(item) {
-    return (
-        item.sellerName ||
-        item.sellerDisplayName ||
-        item.userName ||
-        item.displayName ||
-        item.sellerEmail?.split("@")[0] ||
-        "NMIT Student"
-    );
-}
-
-function getItemSellerEmail(item) {
-    return (
-        item.sellerEmail ||
-        item.userEmail ||
-        ""
-    );
-}
-
-function getItemOwnerId(item) {
-    return (
-        item.sellerUid ||
-        item.userId ||
-        item.ownerId ||
-        ""
-    );
-}
-
-function isCurrentUserOwner(item) {
-    if (!currentUser || !item) return false;
-
-    const ownerId = getItemOwnerId(item);
-
-    if (
-        ownerId &&
-        ownerId === currentUser.uid
-    ) {
-        return true;
-    }
-
-    const sellerEmail = getItemSellerEmail(item);
-
-    return (
-        sellerEmail &&
-        currentUser.email &&
-        sellerEmail.toLowerCase() === currentUser.email.toLowerCase()
-    );
-}
-
-function getPageElement(pageName) {
-    return document.getElementById(`${pageName}Page`);
-}
-
-function switchNavigationTab(pageName) {
-    document.querySelectorAll(".page").forEach(page => {
-        page.classList.remove("active-page");
-    });
-
-    const targetPage = getPageElement(pageName);
-
-    if (targetPage) {
-        targetPage.classList.add("active-page");
-    }
-
-    document.querySelectorAll(".nav-link").forEach(button => {
-        button.classList.toggle(
-            "active",
-            button.dataset.page === pageName
-        );
-    });
-
-    document.querySelectorAll(".bottom-tab-btn").forEach(button => {
-        button.classList.toggle(
-            "active",
-            button.dataset.page === pageName
-        );
-    });
-
-    if (pageName === "messages") {
-        loadMessageThreads();
-    }
-
-    if (pageName === "profile") {
-        renderProfilePage();
-    }
-
-    if (pageName === "sell") {
-        resetSellForm();
-    }
-
-    window.scrollTo({
-        top: 0,
-        behavior: "smooth"
-    });
-}
-
-function openAuthModal(mode = "signin") {
-    authMode = mode;
-
-    const modal = document.getElementById("authModal");
-
-    if (!modal) return;
-
-    modal.classList.remove("hidden");
-
-    updateAuthModal();
-}
-
-function closeAuthModal() {
-    const modal = document.getElementById("authModal");
-
-    if (modal) {
-        modal.classList.add("hidden");
-    }
-}
-
-function updateAuthModal() {
-    const signInTab = document.getElementById("signInTab");
-    const signUpTab = document.getElementById("signUpTab");
-    const title = document.getElementById("authModalTitle");
-    const submitButton = document.getElementById("authSubmitBtn");
-    const nameField = document.getElementById("authNameField");
-
-    if (authMode === "signup") {
-        signInTab?.classList.remove("active");
-        signUpTab?.classList.add("active");
-
-        if (title) {
-            title.textContent = "Create Account";
+window.addEventListener("DOMContentLoaded", () => {
+    const loadingScreen = document.getElementById("loadingScreen");
+    const app = document.getElementById("app");
+    
+    setTimeout(() => {
+        if (loadingScreen) {
+            loadingScreen.classList.add("hide");
+            setTimeout(() => {
+                loadingScreen.style.display = "none";
+                if (app) app.classList.remove("hidden");
+            }, 300);
         }
+    }, 1200);
+});
 
-        if (submitButton) {
-            submitButton.textContent = "Create Account";
-        }
 
-        if (nameField) {
-            nameField.classList.remove("hidden");
+db.collection("listings").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
+    marketplaceItems = [];
+    allUserListings = [];
+
+    snapshot.forEach((doc) => {
+        const data = doc.data();
+        const itemObj = { id: doc.id, ...data };
+        
+        allUserListings.push(itemObj);
+
+        
+        if (data.isSold !== true) {
+            marketplaceItems.push(itemObj);
         }
+    });
+    
+    
+    if (activeSelectedCategory) {
+        const filtered = marketplaceItems.filter(item => item.category === activeSelectedCategory);
+        renderProducts(filtered);
     } else {
-        signUpTab?.classList.remove("active");
-        signInTab?.classList.add("active");
-
-        if (title) {
-            title.textContent = "Welcome Back";
-        }
-
-        if (submitButton) {
-            submitButton.textContent = "Sign In";
-        }
-
-        if (nameField) {
-            nameField.classList.add("hidden");
-        }
-    }
-}
-
-async function handleAuthSubmit(event) {
-    event.preventDefault();
-
-    const emailInput = document.getElementById("authEmail");
-    const passwordInput = document.getElementById("authPassword");
-    const nameInput = document.getElementById("authName");
-
-    const email = emailInput?.value.trim();
-    const password = passwordInput?.value;
-    const name = nameInput?.value.trim();
-
-    if (!email || !password) {
-        alert("Please enter your email and password.");
-        return;
+        renderProducts(marketplaceItems);
     }
 
-    try {
-        if (authMode === "signup") {
-            if (!name) {
-                alert("Please enter your name.");
-                return;
-            }
+    renderFavorites();
+    renderMyListings();
+}, (error) => {
+    console.error("Firestore sync error:", error);
+});
 
-            const credential = await auth.createUserWithEmailAndPassword(
-                email,
-                password
-            );
 
-            await credential.user.updateProfile({
-                displayName: name
-            });
+const productGrid = document.getElementById("productGrid");
+const resultCount = document.getElementById("resultCount");
 
-            await db.collection("users").doc(credential.user.uid).set(
-                {
-                    uid: credential.user.uid,
-                    name,
-                    email,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                },
-                { merge: true }
-            );
-
-            alert("Account created successfully.");
-        } else {
-            await auth.signInWithEmailAndPassword(
-                email,
-                password
-            );
-        }
-
-        closeAuthModal();
-    } catch (error) {
-        console.error(error);
-
-        let message = error.message || "Authentication failed.";
-
-        if (error.code === "auth/email-already-in-use") {
-            message = "This email is already registered.";
-        }
-
-        if (error.code === "auth/invalid-email") {
-            message = "Please enter a valid email address.";
-        }
-
-        if (error.code === "auth/weak-password") {
-            message = "Password should be at least 6 characters.";
-        }
-
-        if (error.code === "auth/invalid-credential") {
-            message = "Incorrect email or password.";
-        }
-
-        alert(message);
-    }
-}
-
-async function signOutUser() {
-    try {
-        await auth.signOut();
-        switchNavigationTab("home");
-    } catch (error) {
-        console.error("Sign out failed:", error);
-        alert("Unable to sign out.");
-    }
-}
-
-function updateAuthButtons() {
-    const authButtons = [
-        document.getElementById("authBtn"),
-        document.getElementById("mobileAuthBtn")
-    ];
-
-    authButtons.forEach(button => {
-        if (!button) return;
-
-        if (currentUser) {
-            button.textContent = "Sign Out";
-        } else {
-            button.textContent = "Sign In";
-        }
-    });
-}
-
-function handleAuthButtonClick() {
-    if (currentUser) {
-        signOutUser();
-    } else {
-        openAuthModal("signin");
-    }
-}
-
-async function saveUserProfile() {
-    if (!currentUser) return;
-
-    const nameInput = document.getElementById("profileNameInput");
-
-    if (!nameInput) return;
-
-    const name = nameInput.value.trim();
-
-    if (!name) {
-        alert("Please enter your name.");
-        return;
-    }
-
-    try {
-        await currentUser.updateProfile({
-            displayName: name
-        });
-
-        await db.collection("users").doc(currentUser.uid).set(
-            {
-                uid: currentUser.uid,
-                name,
-                email: currentUser.email
-            },
-            { merge: true }
-        );
-
-        alert("Profile updated successfully.");
-
-        closeEditProfileModal();
-        renderProfilePage();
-    } catch (error) {
-        console.error(error);
-        alert("Unable to update profile.");
-    }
-}
-
-function openEditProfileModal() {
-    if (!currentUser) {
-        openAuthModal("signin");
-        return;
-    }
-
-    const modal = document.getElementById("editProfileModal");
-    const input = document.getElementById("profileNameInput");
-
-    if (input) {
-        input.value = currentUser.displayName || "";
-    }
-
-    modal?.classList.remove("hidden");
-}
-
-function closeEditProfileModal() {
-    document.getElementById("editProfileModal")?.classList.add("hidden");
-}
-
-async function uploadImageToCloudinary(file) {
-    if (!file) {
-        return null;
-    }
-
-    const formData = new FormData();
-
-    formData.append("file", file);
-    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-
-    const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-        {
-            method: "POST",
-            body: formData
-        }
-    );
-
-    if (!response.ok) {
-        throw new Error("Image upload failed.");
-    }
-
-    const data = await response.json();
-
-    return data.secure_url;
-}
-
-function resetSellForm() {
-    const form = document.getElementById("sellForm");
-
-    if (!form) return;
-
-    form.reset();
-
-    const imagePreview = document.getElementById("sellImagePreview");
-
-    if (imagePreview) {
-        imagePreview.innerHTML = "";
-    }
-
-    const selectedImage = document.getElementById("selectedImage");
-
-    if (selectedImage) {
-        selectedImage.value = "";
-    }
-}
-
-async function handleSellFormSubmit(event) {
-    event.preventDefault();
-
-    if (!currentUser) {
-        openAuthModal("signin");
-        return;
-    }
-
-    const name = document.getElementById("itemName")?.value.trim();
-    const category = document.getElementById("itemCategory")?.value;
-    const price = document.getElementById("itemPrice")?.value;
-    const currency =
-        document.getElementById("itemCurrency")?.value || "INR";
-    const description =
-        document.getElementById("itemDescription")?.value.trim();
-    const condition =
-        document.getElementById("itemCondition")?.value || "";
-    const imageInput = document.getElementById("itemImage");
-
-    if (!name || !category || !price) {
-        alert("Please fill in all required fields.");
-        return;
-    }
-
-    const submitButton =
-        document.querySelector("#sellForm button[type='submit']");
-
-    if (submitButton) {
-        submitButton.disabled = true;
-        submitButton.textContent = "Posting...";
-    }
-
-    try {
-        let imageUrl = "";
-
-        if (imageInput?.files?.length) {
-            imageUrl = await uploadImageToCloudinary(
-                imageInput.files[0]
-            );
-        }
-
-        const listing = {
-            name,
-            category,
-            price: Number(price),
-            currency,
-            description,
-            condition,
-            imageUrl,
-            sellerUid: currentUser.uid,
-            sellerEmail: currentUser.email,
-            sellerName: getUserDisplayName(currentUser),
-            isSold: false,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
-
-        await db.collection("listings").add(listing);
-
-        alert("Your item has been listed successfully.");
-
-        resetSellForm();
-        switchNavigationTab("home");
-    } catch (error) {
-        console.error(error);
-        alert("Unable to create listing: " + error.message);
-    } finally {
-        if (submitButton) {
-            submitButton.disabled = false;
-            submitButton.textContent = "Post Listing";
-        }
-    }
-}
-
-function renderMarketplace(items = marketplaceItems) {
-    const productGrid = document.getElementById("productGrid");
-
-    if (!productGrid) return;
-
-    if (!items.length) {
-        productGrid.innerHTML = `
-            <div class="empty-state">
-                <h3>No items found</h3>
-                <p>Try another search or category.</p>
-            </div>
-        `;
-        return;
-    }
-
+function renderProducts(items) {
+    if (!productGrid || !resultCount) return;
     productGrid.innerHTML = "";
+    resultCount.textContent = `${items.length} ${items.length === 1 ? "item" : "items"}`;
+
+    if (items.length === 0) {
+        productGrid.innerHTML = `
+            <div class="empty-state" style="grid-column:1/-1; text-align:center; padding:40px; color:#70807a;">
+                <h3>No items available</h3>
+                <p>Be the first one to post a listing!</p>
+            </div>`;
+        return;
+    }
 
     items.forEach(item => {
         const card = document.createElement("article");
+        card.className = "product-card";
+        card.setAttribute("data-id", item.id);
 
-        card.className = `product-card ${item.isSold ? "is-sold" : ""}`;
-        card.dataset.id = item.id;
+        const isFavoritedByCurrentUser = userFavoriteIds.has(item.id);
 
         const imageContent = item.imageUrl
-            ? `<img src="${escapeHTML(item.imageUrl)}" alt="${escapeHTML(item.name)}">`
-            : `<div class="product-placeholder">📦</div>`;
-
-        const isFavorite = userFavoriteIds.has(item.id);
+            ? `<img src="${item.imageUrl}" alt="${item.name}">`
+            : `<div style="font-size: 48px;">📦</div>`;
 
         card.innerHTML = `
-            ${item.isSold ? `<span class="sold-ribbon">Sold</span>` : ""}
-            <button type="button" class="favorite-btn ${isFavorite ? "active" : ""}" data-id="${item.id}">
-                ${isFavorite ? "♥" : "♡"}
+            <button class="favorite-toggle-btn ${isFavoritedByCurrentUser ? 'is-favorite' : ''}" data-id="${item.id}" aria-label="Favorite">
+                <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
             </button>
-
-            <div class="product-image">
-                ${imageContent}
-            </div>
-
+            <div class="product-image">${imageContent}</div>
             <div class="product-info">
-                <div class="product-category">
-                    ${escapeHTML(item.category || "Others")}
-                </div>
-
-                <div class="product-name">
-                    ${escapeHTML(item.name)}
-                </div>
-
-                <div class="product-price">
-                    ${formatMarketplacePrice(item)}
-                </div>
-
-                <div class="product-seller">
-                    ${escapeHTML(getItemSellerName(item))}
-                </div>
-            </div>
-        `;
-
-        card.querySelector(".product-image")?.addEventListener(
-            "click",
-            () => openProductDetailModal(item.id)
-        );
-
-        card.querySelector(".product-info")?.addEventListener(
-            "click",
-            () => openProductDetailModal(item.id)
-        );
-
-        card.querySelector(".favorite-btn")?.addEventListener(
-            "click",
-            event => {
-                event.stopPropagation();
-                toggleFavorite(item.id);
-            }
-        );
-
+                <div class="product-category">${item.category}</div>
+                <div class="product-name">${item.name}</div>
+                <span class="product-price">${formatMarketplacePrice(item)}</span>
+            </div>`;
         productGrid.appendChild(card);
     });
 }
 
-async function loadMarketplaceItems() {
-    try {
-        const snapshot = await db
-            .collection("listings")
-            .orderBy("createdAt", "desc")
-            .get();
-
-        marketplaceItems = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-
-        renderMarketplace();
-        updateCategoryCounts();
-    } catch (error) {
-        console.error("Failed to load listings:", error);
-
-        try {
-            const snapshot = await db
-                .collection("listings")
-                .get();
-
-            marketplaceItems = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-
-            marketplaceItems.sort((a, b) => {
-                const aTime = a.createdAt?.seconds || 0;
-                const bTime = b.createdAt?.seconds || 0;
-                return bTime - aTime;
-            });
-
-            renderMarketplace();
-            updateCategoryCounts();
-        } catch (fallbackError) {
-            console.error(fallbackError);
+if (productGrid) {
+    productGrid.addEventListener("click", (e) => {
+        const favoriteBtn = e.target.closest(".favorite-toggle-btn");
+        if (favoriteBtn) {
+            e.stopPropagation();
+            toggleFavorite(favoriteBtn.getAttribute("data-id"));
+            return;
         }
-    }
-}
 
-function updateCategoryCounts() {
-    document.querySelectorAll(".category-card").forEach(card => {
-        const category = card.dataset.category;
-
-        const count = marketplaceItems.filter(
-            item => item.category === category && !item.isSold
-        ).length;
-
-        const countElement = card.querySelector(".category-count");
-
-        if (countElement) {
-            countElement.textContent = count;
+        const card = e.target.closest(".product-card");
+        if (card) {
+            const itemId = card.getAttribute("data-id");
+            openProductDetailModal(itemId);
         }
     });
 }
 
-function filterMarketplace() {
-    const searchInput = document.getElementById("searchInput");
 
-    const query = searchInput
-        ? searchInput.value.trim().toLowerCase()
-        : "";
+const productDetailModal = document.getElementById("productDetailModal");
+const closeDetailModal = document.getElementById("closeDetailModal");
+const detailModalImg = document.getElementById("detailModalImg");
+const detailImageWrapper = document.getElementById("detailImageWrapper");
+const detailCategory = document.getElementById("detailCategory");
+const detailTitle = document.getElementById("detailTitle");
+const detailPrice = document.getElementById("detailPrice");
+const detailSeller = document.getElementById("detailSeller");
+const detailDescription = document.getElementById("detailDescription");
+const modalChatSellerBtn = document.getElementById("modalChatSellerBtn");
 
-    let filtered = marketplaceItems.filter(item => {
-        if (activeSelectedCategory) {
-            return item.category === activeSelectedCategory;
+const imageLightbox = document.getElementById("imageLightbox");
+const lightboxImg = document.getElementById("lightboxImg");
+
+function openProductDetailModal(itemId) {
+    const item = allUserListings.find(i => i.id === itemId) || marketplaceItems.find(i => i.id === itemId);
+    if (!item || !productDetailModal) return;
+
+    activeViewingItem = item;
+    detailModalImg.src = item.imageUrl || "nmit-logo.png";
+    detailCategory.textContent = item.category;
+    detailTitle.textContent = item.name;
+    detailPrice.innerHTML = formatMarketplacePrice(item);
+    
+    const sellerName = item.sellerName || (item.sellerEmail ? item.sellerEmail.split("@")[0] : "Student Seller");
+    detailSeller.textContent = sellerName;
+    detailDescription.textContent = item.description || "No additional description provided.";
+
+    productDetailModal.classList.remove("hidden");
+}
+
+function closeDetailModalHandler() {
+    if (productDetailModal) productDetailModal.classList.add("hidden");
+}
+
+if (closeDetailModal) closeDetailModal.addEventListener("click", closeDetailModalHandler);
+if (productDetailModal) {
+    productDetailModal.addEventListener("click", (e) => {
+        if (e.target === productDetailModal) closeDetailModalHandler();
+    });
+}
+
+if (detailImageWrapper && imageLightbox && lightboxImg) {
+    detailImageWrapper.addEventListener("click", () => {
+        if (detailModalImg.src) {
+            lightboxImg.src = detailModalImg.src;
+            imageLightbox.classList.remove("hidden");
         }
-
-        return true;
     });
 
-    if (query) {
-        filtered = filtered.filter(item => {
-            const text = [
-                item.name,
-                item.category,
-                item.description,
-                item.condition,
-                getItemSellerName(item)
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-            return text.includes(query);
-        });
-    }
-
-    renderMarketplace(filtered);
-}
-
-function performSearch() {
-    activeSelectedCategory = null;
-
-    document.querySelectorAll(".category-card").forEach(card => {
-        card.classList.remove("active");
-    });
-
-    filterMarketplace();
-
-    document.getElementById("searchSuggestions")?.classList.add("hidden");
-
-    document.getElementById("productGrid")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
+    imageLightbox.addEventListener("click", () => {
+        imageLightbox.classList.add("hidden");
     });
 }
 
-function showSearchSuggestions() {
-    const input = document.getElementById("searchInput");
-    const suggestions = document.getElementById("searchSuggestions");
-
-    if (!input || !suggestions) return;
-
-    const query = input.value.trim().toLowerCase();
-
-    if (!query) {
-        suggestions.classList.add("hidden");
-        return;
-    }
-
-    const matches = marketplaceItems
-        .filter(item => {
-            const text = [
-                item.name,
-                item.category,
-                item.description
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-            return text.includes(query);
-        })
-        .slice(0, 6);
-
-    if (!matches.length) {
-        suggestions.innerHTML = `
-            <div class="search-suggestion-empty">
-                No matching products found
-            </div>
-        `;
-
-        suggestions.classList.remove("hidden");
-        return;
-    }
-
-    suggestions.innerHTML = matches
-        .map(item => `
-            <button type="button" class="search-suggestion" data-id="${item.id}">
-                <span>${escapeHTML(item.name)}</span>
-                <small>${escapeHTML(item.category || "")}</small>
-            </button>
-        `)
-        .join("");
-
-    suggestions.classList.remove("hidden");
-
-    suggestions.querySelectorAll(".search-suggestion").forEach(button => {
-        button.addEventListener("click", () => {
-            const item = marketplaceItems.find(
-                product => product.id === button.dataset.id
-            );
-
-            if (!item) return;
-
-            input.value = item.name;
-            suggestions.classList.add("hidden");
-
-            openProductDetailModal(item.id);
-        });
+if (modalChatSellerBtn) {
+    modalChatSellerBtn.addEventListener("click", () => {
+        if (!activeViewingItem) return;
+        closeDetailModalHandler();
+        startChatWithItem(activeViewingItem);
     });
 }
 
-function selectCategory(category) {
-    activeSelectedCategory = category;
 
-    const searchInput = document.getElementById("searchInput");
+function subscribeToUserFavorites(uid) {
+    if (unsubscribeUserFavorites) unsubscribeUserFavorites();
 
-    if (searchInput) {
-        searchInput.value = "";
-    }
-
-    document.querySelectorAll(".category-card").forEach(card => {
-        card.classList.toggle(
-            "active",
-            card.dataset.category === category
-        );
-    });
-
-    filterMarketplace();
-
-    document.getElementById("productGrid")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-    });
-}
-
-async function loadUserFavorites() {
-    if (!currentUser) {
-        userFavoriteIds = new Set();
-        renderMarketplace();
-        return;
-    }
-
-    try {
-        const snapshot = await db
-            .collection("users")
-            .doc(currentUser.uid)
-            .collection("favorites")
-            .get();
-
-        userFavoriteIds = new Set(
-            snapshot.docs.map(doc => doc.id)
-        );
-
-        renderMarketplace();
-    } catch (error) {
-        console.error("Unable to load favorites:", error);
-    }
+    unsubscribeUserFavorites = db.collection("users").doc(uid).collection("favorites")
+        .onSnapshot((snapshot) => {
+            userFavoriteIds = new Set();
+            snapshot.forEach(doc => userFavoriteIds.add(doc.id));
+            
+            
+            if (activeSelectedCategory) {
+                renderProducts(marketplaceItems.filter(i => i.category === activeSelectedCategory));
+            } else {
+                renderProducts(marketplaceItems);
+            }
+            renderFavorites();
+        }, (err) => console.error("Error listening to user favorites:", err));
 }
 
 async function toggleFavorite(itemId) {
     if (!currentUser) {
+        alert("Please sign in to save items to your favorites.");
         openAuthModal("signin");
         return;
     }
 
-    const favoriteRef = db
-        .collection("users")
-        .doc(currentUser.uid)
-        .collection("favorites")
-        .doc(itemId);
+    const favRef = db.collection("users").doc(currentUser.uid).collection("favorites").doc(itemId);
 
     try {
         if (userFavoriteIds.has(itemId)) {
-            await favoriteRef.delete();
-            userFavoriteIds.delete(itemId);
+            await favRef.delete();
         } else {
-            await favoriteRef.set({
-                listingId: itemId,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            await favRef.set({
+                addedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
-
-            userFavoriteIds.add(itemId);
         }
-
-        renderMarketplace();
-
-        if (
-            document
-                .getElementById("profilePage")
-                ?.classList.contains("active-page")
-        ) {
-            renderProfilePage();
-        }
-    } catch (error) {
-        console.error("Favorite update failed:", error);
-        alert("Unable to update favorite.");
+    } catch (err) {
+        console.error("Error updating favorite:", err);
     }
 }
 
-function openProductDetailModal(itemId) {
-    const item = marketplaceItems.find(
-        product => product.id === itemId
-    );
+function renderFavorites() {
+    const favoritesTab = document.getElementById("favoritesTab");
+    if (!favoritesTab) return;
 
-    if (!item) return;
-
-    activeViewingItem = item;
-
-    const modal = document.getElementById("productModal");
-
-    if (!modal) return;
-
-    const image = document.getElementById("modalProductImage");
-    const name = document.getElementById("modalProductName");
-    const category = document.getElementById("modalProductCategory");
-    const price = document.getElementById("modalProductPrice");
-    const description = document.getElementById("modalProductDescription");
-    const condition = document.getElementById("modalProductCondition");
-    const seller = document.getElementById("modalProductSeller");
-
-    if (image) {
-        if (item.imageUrl) {
-            image.src = item.imageUrl;
-            image.classList.remove("hidden");
-        } else {
-            image.removeAttribute("src");
-            image.classList.add("hidden");
-        }
-    }
-
-    if (name) {
-        name.textContent = item.name || "";
-    }
-
-    if (category) {
-        category.textContent = item.category || "";
-    }
-
-    if (price) {
-        price.textContent = formatMarketplacePrice(item);
-    }
-
-    if (description) {
-        description.textContent =
-            item.description || "No description provided.";
-    }
-
-    if (condition) {
-        condition.textContent =
-            item.condition || "Not specified";
-    }
-
-    if (seller) {
-        seller.textContent = getItemSellerName(item);
-    }
-
-    const favoriteButton =
-        document.getElementById("modalFavoriteBtn");
-
-    if (favoriteButton) {
-        favoriteButton.textContent =
-            userFavoriteIds.has(item.id) ? "♥" : "♡";
-
-        favoriteButton.classList.toggle(
-            "active",
-            userFavoriteIds.has(item.id)
-        );
-    }
-
-    const ownerActions =
-        document.getElementById("modalOwnerActions");
-
-    if (ownerActions) {
-        ownerActions.classList.toggle(
-            "hidden",
-            !isCurrentUserOwner(item)
-        );
-    }
-
-    const contactButton =
-        document.getElementById("contactSellerBtn");
-
-    if (contactButton) {
-        contactButton.classList.toggle(
-            "hidden",
-            isCurrentUserOwner(item)
-        );
-    }
-
-    modal.classList.remove("hidden");
-}
-
-function closeProductDetailModal() {
-    document
-        .getElementById("productModal")
-        ?.classList.add("hidden");
-
-    activeViewingItem = null;
-}
-
-function openImageLightbox(url) {
-    if (!url) return;
-
-    const lightbox = document.getElementById("imageLightbox");
-    const image = document.getElementById("lightboxImage");
-
-    if (!lightbox || !image) return;
-
-    image.src = url;
-    lightbox.classList.remove("hidden");
-}
-
-function closeImageLightbox() {
-    document
-        .getElementById("imageLightbox")
-        ?.classList.add("hidden");
-}
-
-async function contactSeller() {
-    if (!currentUser) {
-        openAuthModal("signin");
-        return;
-    }
-
-    if (!activeViewingItem) return;
-
-    if (isCurrentUserOwner(activeViewingItem)) {
-        return;
-    }
-
-    const sellerUid = getItemOwnerId(activeViewingItem);
-
-    if (!sellerUid) {
-        alert("Seller information is unavailable.");
-        return;
-    }
-
-    try {
-        const chatId = [
-            currentUser.uid,
-            sellerUid
-        ]
-            .sort()
-            .join("_");
-
-        await db.collection("chats").doc(chatId).set(
-            {
-                participants: [currentUser.uid, sellerUid],
-                listingId: activeViewingItem.id,
-                listingName: activeViewingItem.name,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            },
-            { merge: true }
-        );
-
-        closeProductDetailModal();
-
-        currentChatId = chatId;
-
-        switchNavigationTab("messages");
-
-        openChat(chatId);
-    } catch (error) {
-        console.error(error);
-        alert("Unable to start conversation.");
-    }
-}
-
-async function loadMessageThreads() {
-    const chatList = document.getElementById("chatList");
-
-    if (!chatList) return;
+    const container = favoritesTab.querySelector(".product-grid");
+    if (!container) return;
 
     if (!currentUser) {
-        chatList.innerHTML = `
-            <div class="empty-chat-state">
-                <p>Please sign in to view your messages.</p>
-            </div>
-        `;
+        container.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: #70807a; padding: 40px;">Please sign in to view your favorites.</p>`;
         return;
     }
 
-    if (unsubscribeThreads) {
-        unsubscribeThreads();
-    }
+    const favoriteItems = allUserListings.filter(item => userFavoriteIds.has(item.id));
 
-    unsubscribeThreads = db
-        .collection("chats")
-        .where("participants", "array-contains", currentUser.uid)
-        .onSnapshot(async snapshot => {
-            const chats = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-
-            chats.sort((a, b) => {
-                const aTime = a.updatedAt?.seconds || 0;
-                const bTime = b.updatedAt?.seconds || 0;
-
-                return bTime - aTime;
-            });
-
-            if (!chats.length) {
-                chatList.innerHTML = `
-                    <div class="empty-chat-state">
-                        <p>No conversations yet.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            chatList.innerHTML = "";
-
-            for (const chat of chats) {
-                const otherUserId =
-                    chat.participants.find(
-                        id => id !== currentUser.uid
-                    );
-
-                let otherUser = null;
-
-                try {
-                    if (otherUserId) {
-                        const userDoc = await db
-                            .collection("users")
-                            .doc(otherUserId)
-                            .get();
-
-                        if (userDoc.exists) {
-                            otherUser = userDoc.data();
-                        }
-                    }
-                } catch (error) {
-                    console.warn(error);
-                }
-
-                const item = document.createElement("button");
-
-                item.type = "button";
-                item.className =
-                    `chat-list-item ${chat.id === currentChatId ? "active-chat" : ""}`;
-
-                item.innerHTML = `
-                    <div class="chat-item-img">💬</div>
-                    <div class="chat-item-details">
-                        <div class="chat-item-title">
-                            ${escapeHTML(
-                                otherUser?.name ||
-                                otherUser?.email ||
-                                "NMIT Student"
-                            )}
-                        </div>
-
-                        <div class="chat-item-user">
-                            ${escapeHTML(chat.listingName || "Marketplace")}
-                        </div>
-
-                        <div class="chat-item-preview">
-                            ${escapeHTML(chat.lastMessage || "Start a conversation")}
-                        </div>
-                    </div>
-                `;
-
-                item.addEventListener(
-                    "click",
-                    () => openChat(chat.id)
-                );
-
-                chatList.appendChild(item);
-            }
-        });
-}
-
-async function openChat(chatId) {
-    currentChatId = chatId;
-
-    const chatWindow =
-        document.getElementById("chatWindow");
-
-    const chatMessages =
-        document.getElementById("chatMessages");
-
-    if (!chatWindow || !chatMessages) return;
-
-    chatWindow.classList.add("chat-open");
-
-    if (unsubscribeMessages) {
-        unsubscribeMessages();
-    }
-
-    let chatData = null;
-
-    try {
-        const chatDoc = await db
-            .collection("chats")
-            .doc(chatId)
-            .get();
-
-        if (chatDoc.exists) {
-            chatData = chatDoc.data();
-        }
-    } catch (error) {
-        console.error(error);
-    }
-
-    const otherUserId =
-        chatData?.participants?.find(
-            id => id !== currentUser?.uid
-        );
-
-    let otherUser = null;
-
-    if (otherUserId) {
-        try {
-            const userDoc = await db
-                .collection("users")
-                .doc(otherUserId)
-                .get();
-
-            if (userDoc.exists) {
-                otherUser = userDoc.data();
-            }
-        } catch (error) {
-            console.error(error);
-        }
-    }
-
-    const title =
-        document.getElementById("chatWindowTitle");
-
-    const subtitle =
-        document.getElementById("chatWindowSubtitle");
-
-    if (title) {
-        title.textContent =
-            otherUser?.name ||
-            otherUser?.email ||
-            "NMIT Student";
-    }
-
-    if (subtitle) {
-        subtitle.textContent =
-            chatData?.listingName || "Marketplace";
-    }
-
-    unsubscribeMessages = db
-        .collection("chats")
-        .doc(chatId)
-        .collection("messages")
-        .orderBy("createdAt", "asc")
-        .onSnapshot(snapshot => {
-            chatMessages.innerHTML = "";
-
-            snapshot.docs.forEach(doc => {
-                const message = doc.data();
-
-                const bubble =
-                    document.createElement("div");
-
-                const sent =
-                    message.senderId === currentUser?.uid;
-
-                bubble.className =
-                    `message-bubble ${sent ? "sent" : "received"}`;
-
-                const time =
-                    message.createdAt?.toDate
-                        ? message.createdAt
-                              .toDate()
-                              .toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit"
-                              })
-                        : "";
-
-                bubble.innerHTML = `
-                    <div>${escapeHTML(message.text || "")}</div>
-                    <span class="msg-time">${time}</span>
-                `;
-
-                chatMessages.appendChild(bubble);
-            });
-
-            chatMessages.scrollTop =
-                chatMessages.scrollHeight;
-        });
-
-    document
-        .getElementById("chatInput")
-        ?.focus();
-}
-
-async function sendChatMessage() {
-    if (!currentUser || !currentChatId) return;
-
-    const input =
-        document.getElementById("chatInput");
-
-    if (!input) return;
-
-    const text = input.value.trim();
-
-    if (!text) return;
-
-    input.value = "";
-
-    try {
-        const messageData = {
-            text,
-            senderId: currentUser.uid,
-            senderName: getUserDisplayName(currentUser),
-            createdAt:
-                firebase.firestore.FieldValue.serverTimestamp()
-        };
-
-        await db
-            .collection("chats")
-            .doc(currentChatId)
-            .collection("messages")
-            .add(messageData);
-
-        await db
-            .collection("chats")
-            .doc(currentChatId)
-            .set(
-                {
-                    lastMessage: text,
-                    lastMessageSenderId: currentUser.uid,
-                    updatedAt:
-                        firebase.firestore.FieldValue.serverTimestamp()
-                },
-                { merge: true }
-            );
-    } catch (error) {
-        console.error(error);
-        alert("Unable to send message.");
-    }
-}
-
-function closeMobileChat() {
-    document
-        .getElementById("chatWindow")
-        ?.classList.remove("chat-open");
-
-    currentChatId = null;
-
-    if (unsubscribeMessages) {
-        unsubscribeMessages();
-        unsubscribeMessages = null;
-    }
-}
-
-function openEditItemModal(item) {
-    if (!item || !isCurrentUserOwner(item)) {
+    if (favoriteItems.length === 0) {
+        container.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: #70807a; padding: 40px;">No saved favorites yet.</p>`;
         return;
     }
 
-    const modal =
-        document.getElementById("editItemModal");
+    container.innerHTML = "";
+    favoriteItems.forEach(item => {
+        const imageContent = item.imageUrl
+            ? `<img src="${item.imageUrl}" alt="${item.name}">`
+            : `<div style="font-size: 48px;">📦</div>`;
 
-    if (!modal) return;
-
-    const idInput =
-        document.getElementById("editItemId");
-
-    const nameInput =
-        document.getElementById("editItemName");
-
-    const categoryInput =
-        document.getElementById("editItemCategory");
-
-    const priceInput =
-        document.getElementById("editItemPrice");
-
-    const currencyInput =
-        document.getElementById("editItemCurrency");
-
-    const descriptionInput =
-        document.getElementById("editItemDescription");
-
-    const conditionInput =
-        document.getElementById("editItemCondition");
-
-    if (idInput) idInput.value = item.id;
-    if (nameInput) nameInput.value = item.name || "";
-    if (categoryInput) categoryInput.value = item.category || "";
-    if (priceInput) priceInput.value = item.price || "";
-    if (currencyInput) currencyInput.value = item.currency || "INR";
-    if (descriptionInput) descriptionInput.value = item.description || "";
-    if (conditionInput) conditionInput.value = item.condition || "";
-
-    modal.classList.remove("hidden");
+        const card = document.createElement("article");
+        card.className = "product-card";
+        card.innerHTML = `
+            <div class="favorite-icon-active" data-id="${item.id}" title="Remove favorite">❤️</div>
+            <div class="product-image">${imageContent}</div>
+            <div class="product-info">
+                <div class="product-category">${item.category}</div>
+                <div class="product-name">${item.name}</div>
+                <span class="product-price">${formatMarketplacePrice(item)}</span>
+            </div>`;
+        container.appendChild(card);
+    });
 }
 
-function closeEditItemModal() {
-    document
-        .getElementById("editItemModal")
-        ?.classList.add("hidden");
-}
-
-async function saveEditedItem(event) {
-    event.preventDefault();
-
-    if (!currentUser) return;
-
-    const id =
-        document.getElementById("editItemId")?.value;
-
-    if (!id) return;
-
-    const item =
-        marketplaceItems.find(product => product.id === id);
-
-    if (!item || !isCurrentUserOwner(item)) {
-        alert("You can only edit your own listings.");
-        return;
-    }
-
-    const updates = {
-        name:
-            document.getElementById("editItemName")?.value.trim(),
-        category:
-            document.getElementById("editItemCategory")?.value,
-        price:
-            Number(document.getElementById("editItemPrice")?.value || 0),
-        currency:
-            document.getElementById("editItemCurrency")?.value || "INR",
-        description:
-            document.getElementById("editItemDescription")?.value.trim(),
-        condition:
-            document.getElementById("editItemCondition")?.value || "",
-        updatedAt:
-            firebase.firestore.FieldValue.serverTimestamp()
-    };
-
-    try {
-        await db
-            .collection("listings")
-            .doc(id)
-            .update(updates);
-
-        closeEditItemModal();
-
-        alert("Listing updated successfully.");
-
-        await loadMarketplaceItems();
-        renderProfilePage();
-    } catch (error) {
-        console.error(error);
-        alert("Unable to update listing.");
-    }
-}
-
-async function toggleSoldStatus(itemId) {
-    if (!currentUser) return;
-
-    const item =
-        marketplaceItems.find(product => product.id === itemId);
-
-    if (!item || !isCurrentUserOwner(item)) {
-        alert("You can only update your own listing.");
-        return;
-    }
-
-    try {
-        await db
-            .collection("listings")
-            .doc(itemId)
-            .update({
-                isSold: !item.isSold,
-                updatedAt:
-                    firebase.firestore.FieldValue.serverTimestamp()
-            });
-
-        await loadMarketplaceItems();
-        renderProfilePage();
-    } catch (error) {
-        console.error(error);
-        alert("Unable to update listing status.");
-    }
-}
-
-function renderProfilePage() {
-    const profileName =
-        document.getElementById("profileName");
-
-    const profileEmail =
-        document.getElementById("profileEmail");
-
-    const myListingsGrid =
-        document.getElementById("myListingsGrid");
-
-    const favoritesGrid =
-        document.getElementById("favoritesGrid");
-
-    if (!currentUser) {
-        if (profileName) {
-            profileName.textContent = "Guest User";
+const favoritesTabElem = document.getElementById("favoritesTab");
+if (favoritesTabElem) {
+    favoritesTabElem.addEventListener("click", (e) => {
+        const removeBtn = e.target.closest(".favorite-icon-active");
+        if (removeBtn) {
+            const itemId = removeBtn.getAttribute("data-id");
+            toggleFavorite(itemId);
         }
-
-        if (profileEmail) {
-            profileEmail.textContent = "Sign in to manage your profile";
-        }
-
-        if (myListingsGrid) {
-            myListingsGrid.innerHTML = `
-                <div style="grid-column:1/-1;text-align:center;color:#70807a;padding:40px;">
-                    <p>Please sign in to view your listings.</p>
-                    <button type="button" class="secondary-button" style="margin-top:10px;" onclick="openAuthModal('signin')">
-                        Sign In
-                    </button>
-                </div>
-            `;
-        }
-
-        if (favoritesGrid) {
-            favoritesGrid.innerHTML = `
-                <div style="grid-column:1/-1;text-align:center;color:#70807a;padding:40px;">
-                    <p>Please sign in to view your favorites.</p>
-                </div>
-            `;
-        }
-
-        return;
-    }
-
-    if (profileName) {
-        profileName.textContent =
-            getUserDisplayName(currentUser);
-    }
-
-    if (profileEmail) {
-        profileEmail.textContent =
-            currentUser.email || "";
-    }
-
-    renderMyListings();
-    renderFavorites();
+    });
 }
+
 
 function renderMyListings() {
-    const myListingsGrid =
-        document.getElementById("myListingsGrid");
-
+    const myListingsGrid = document.getElementById("myListingsGrid");
     if (!myListingsGrid) return;
 
     if (!currentUser) {
         myListingsGrid.innerHTML = `
-            <div style="grid-column:1/-1;text-align:center;color:#70807a;padding:40px;">
+            <div style="grid-column: 1/-1; text-align: center; color: #70807a; padding: 40px;">
                 <p>Please sign in to view your listings.</p>
-                <button type="button" class="secondary-button" style="margin-top:10px;" onclick="openAuthModal('signin')">
-                    Sign In
-                </button>
-            </div>
-        `;
-
+                <button type="button" class="secondary-button" style="margin-top: 10px;" onclick="openAuthModal('signin')">Sign In</button>
+            </div>`;
         return;
     }
 
     const myItems = allUserListings.filter(item => {
-        return (
-            item.sellerUid === currentUser.uid ||
-            item.userId === currentUser.uid ||
-            (
-                item.sellerEmail &&
-                item.sellerEmail.toLowerCase() ===
-                    currentUser.email?.toLowerCase()
-            )
-        );
+        return item.sellerUid === currentUser.uid || 
+               item.userId === currentUser.uid ||
+               (item.sellerEmail && item.sellerEmail.toLowerCase() === currentUser.email?.toLowerCase());
     });
 
-    if (!myItems.length) {
+    if (myItems.length === 0) {
         myListingsGrid.innerHTML = `
-            <div style="grid-column:1/-1;text-align:center;color:#70807a;padding:40px;">
+            <div style="grid-column: 1/-1; text-align: center; color: #70807a; padding: 40px;">
                 <h3>No Listings Found</h3>
                 <p>You haven't posted any items for sale yet.</p>
-                <button type="button" class="primary-button" style="margin-top:15px;" onclick="switchNavigationTab('sell')">
-                    + Sell an Item
-                </button>
-            </div>
-        `;
-
+                <button type="button" class="primary-button" style="margin-top: 15px;" onclick="switchNavigationTab('sell')">+ Sell an Item</button>
+            </div>`;
         return;
     }
 
     myListingsGrid.innerHTML = "";
-
     myItems.forEach(item => {
         const card = document.createElement("article");
-
-        card.className =
-            `product-card my-listing-card ${item.isSold ? "is-sold" : ""}`;
-
-        card.dataset.id = item.id;
+        card.className = `product-card my-listing-card ${item.isSold ? "is-sold" : ""}`;
+        card.setAttribute("data-id", item.id);
 
         const imageContent = item.imageUrl
-            ? `<img src="${escapeHTML(item.imageUrl)}" alt="${escapeHTML(item.name)}">`
-            : `<div style="font-size:48px;">📦</div>`;
+            ? `<img src="${item.imageUrl}" alt="${item.name}">`
+            : `<div style="font-size: 48px;">📦</div>`;
 
         card.innerHTML = `
             ${item.isSold ? `<span class="sold-ribbon">Sold</span>` : ""}
-
-            <div class="product-image">
-                ${imageContent}
-            </div>
-
+            <div class="product-image">${imageContent}</div>
             <div class="product-info">
-                <div class="product-category">
-                    ${escapeHTML(item.category || "")}
-                </div>
-
-                <div class="product-name">
-                    ${escapeHTML(item.name || "")}
-                </div>
-
-                <span class="product-price">
-                    ${formatMarketplacePrice(item)}
-                </span>
+                <div class="product-category">${item.category}</div>
+                <div class="product-name">${item.name}</div>
+                <span class="product-price">${formatMarketplacePrice(item)}</span>
             </div>
-
             <div class="listing-actions-bar">
                 <div class="listing-btn-group">
-                    <button type="button" class="action-btn edit-btn" data-id="${item.id}">
-                        Edit
-                    </button>
-
-                    <button type="button" class="action-btn delete-btn" data-id="${item.id}">
-                        Delete
-                    </button>
+                    <button type="button" class="action-btn edit-btn" data-id="${item.id}">Edit</button>
+                    <button type="button" class="action-btn delete-btn" data-id="${item.id}">Delete</button>
                 </div>
-
-                <button
-                    type="button"
-                    class="sold-toggle-btn ${item.isSold ? "marked-sold" : ""}"
-                    data-id="${item.id}"
-                >
+                <button type="button" class="sold-toggle-btn ${item.isSold ? "marked-sold" : ""}" data-id="${item.id}">
                     ${item.isSold ? "✓ Sold" : "Sold"}
                 </button>
             </div>
         `;
 
-        card.querySelector(".product-image")?.addEventListener(
-            "click",
-            () => openProductDetailModal(item.id)
-        );
+        card.querySelector(".product-image").addEventListener("click", () => openProductDetailModal(item.id));
+        card.querySelector(".product-info").addEventListener("click", () => openProductDetailModal(item.id));
 
-        card.querySelector(".product-info")?.addEventListener(
-            "click",
-            () => openProductDetailModal(item.id)
-        );
+        card.querySelector(".edit-btn").addEventListener("click", (e) => {
+            e.stopPropagation();
+            openEditItemModal(item);
+        });
 
-        card.querySelector(".edit-btn")?.addEventListener(
-            "click",
-            event => {
-                event.stopPropagation();
-                openEditItemModal(item);
-            }
-        );
-
-        card.querySelector(".delete-btn")?.addEventListener(
-            "click",
-            async event => {
-                event.stopPropagation();
-
-                if (
-                    !confirm(
-                        `Are you sure you want to delete "${item.name}"?`
-                    )
-                ) {
-                    return;
-                }
-
+        card.querySelector(".delete-btn").addEventListener("click", async (e) => {
+            e.stopPropagation();
+            if (confirm(`Are you sure you want to delete "${item.name}"?`)) {
                 try {
-                    await db
-                        .collection("listings")
-                        .doc(item.id)
-                        .delete();
-
-                    await loadMarketplaceItems();
-                    await loadAllUserListings();
-                    renderProfilePage();
-                } catch (error) {
-                    alert(
-                        "Failed to delete listing: " +
-                        error.message
-                    );
+                    await db.collection("listings").doc(item.id).delete();
+                } catch (err) {
+                    alert("Failed to delete listing: " + err.message);
                 }
             }
-        );
+        });
 
-        card.querySelector(".sold-toggle-btn")?.addEventListener(
-            "click",
-            event => {
-                event.stopPropagation();
-                toggleSoldStatus(item.id);
+        card.querySelector(".sold-toggle-btn").addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const newSoldStatus = !item.isSold;
+            try {
+                await db.collection("listings").doc(item.id).update({
+                    isSold: newSoldStatus
+                });
+            } catch (err) {
+                alert("Failed to update status: " + err.message);
             }
-        );
+        });
 
         myListingsGrid.appendChild(card);
     });
 }
 
-function renderFavorites() {
-    const favoritesGrid =
-        document.getElementById("favoritesGrid");
 
-    if (!favoritesGrid) return;
+const editListingModal = document.getElementById("editListingModal");
+const closeEditModal = document.getElementById("closeEditModal");
+const cancelEditModal = document.getElementById("cancelEditModal");
+const editListingForm = document.getElementById("editListingForm");
+const triggerEditImageBtn = document.getElementById("triggerEditImageBtn");
+const editItemImageInput = document.getElementById("editItemImage");
+const editImagePreviewImg = document.getElementById("editImagePreviewImg");
+const editFormError = document.getElementById("editFormError");
+const saveEditBtn = document.getElementById("saveEditBtn");
 
+let activeEditingItem = null;
+
+if (triggerEditImageBtn && editItemImageInput) {
+    triggerEditImageBtn.addEventListener("click", () => editItemImageInput.click());
+    editItemImageInput.addEventListener("change", function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                editImagePreviewImg.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
+function openEditItemModal(item) {
+    if (!editListingModal) return;
+    activeEditingItem = item;
+    
+    document.getElementById("editItemId").value = item.id;
+    document.getElementById("editItemName").value = item.name || "";
+    document.getElementById("editItemPrice").value = item.price || "";
+    document.getElementById("editItemCurrency").value = item.currency || "INR";
+    document.getElementById("editItemCategory").value = item.category || "Books";
+    document.getElementById("editItemDescription").value = item.description || "";
+    
+    editImagePreviewImg.src = item.imageUrl || "nmit-logo.png";
+    editItemImageInput.value = "";
+    if (editFormError) editFormError.classList.add("hidden");
+
+    editListingModal.classList.remove("hidden");
+}
+
+if (closeEditModal) closeEditModal.addEventListener("click", () => editListingModal.classList.add("hidden"));
+if (cancelEditModal) cancelEditModal.addEventListener("click", () => editListingModal.classList.add("hidden"));
+
+if (editListingForm) {
+    editListingForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const itemId = document.getElementById("editItemId").value;
+        const updatedName = document.getElementById("editItemName").value.trim();
+        const updatedPrice = parseFloat(document.getElementById("editItemPrice").value);
+        const updatedCurrency = document.getElementById("editItemCurrency").value;
+        const updatedCategory = document.getElementById("editItemCategory").value;
+        const updatedDesc = document.getElementById("editItemDescription").value.trim();
+        const newPhotoFile = editItemImageInput.files[0];
+
+        saveEditBtn.disabled = true;
+        saveEditBtn.textContent = newPhotoFile ? "Uploading photo..." : "Saving...";
+
+        try {
+            let finalImageUrl = activeEditingItem?.imageUrl || "";
+
+            if (newPhotoFile) {
+                const formData = new FormData();
+                formData.append("file", newPhotoFile);
+                formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+                const uploadRes = await fetch(
+                    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+                    { method: "POST", body: formData }
+                );
+                if (!uploadRes.ok) throw new Error("Image upload failed.");
+                const uploadData = await uploadRes.json();
+                finalImageUrl = uploadData.secure_url;
+            }
+
+            await db.collection("listings").doc(itemId).update({
+                name: updatedName,
+                price: updatedPrice,
+                currency: updatedCurrency,
+                category: updatedCategory,
+                description: updatedDesc,
+                imageUrl: finalImageUrl,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            editListingModal.classList.add("hidden");
+        } catch (err) {
+            console.error(err);
+            if (editFormError) {
+                editFormError.textContent = err.message || "Failed to save edits.";
+                editFormError.classList.remove("hidden");
+            }
+        } finally {
+            saveEditBtn.disabled = false;
+            saveEditBtn.textContent = "Update Listing";
+        }
+    });
+}
+
+
+const chatLayout = document.querySelector(".chat-layout");
+const chatBackBtn = document.getElementById("chatBackBtn");
+const chatThreadsList = document.getElementById("chatThreadsList");
+const chatHeaderTitle = document.getElementById("chatHeaderTitle");
+const chatHeaderSub = document.getElementById("chatHeaderSub");
+const chatMessages = document.getElementById("chatMessages");
+const chatInput = document.getElementById("chatInput");
+const chatSendBtn = document.getElementById("chatSendBtn");
+
+function subscribeToUserChats() {
+    if (!currentUser || !chatThreadsList) return;
+    if (unsubscribeThreads) unsubscribeThreads();
+
+    unsubscribeThreads = db.collection("chats")
+        .where("participants", "array-contains", currentUser.uid)
+        .orderBy("updatedAt", "desc")
+        .onSnapshot((snapshot) => {
+            chatThreadsList.innerHTML = "";
+
+            if (snapshot.empty) {
+                chatThreadsList.innerHTML = `
+                    <div style="padding: 24px; text-align: center; color: #70807a; font-size: 13px;">
+                        No active conversations.<br>Tap "Chat with Seller" on any item!
+                    </div>`;
+                return;
+            }
+
+            snapshot.forEach((doc) => {
+                const chat = doc.data();
+                const chatId = doc.id;
+                const otherUserName = (chat.buyerUid === currentUser.uid) ? chat.sellerName : chat.buyerName;
+
+                const itemDiv = document.createElement("div");
+                itemDiv.className = `chat-list-item ${currentChatId === chatId ? "active-chat" : ""}`;
+                itemDiv.innerHTML = `
+                    <div class="chat-item-img">
+                        ${chat.listingImage ? `<img src="${chat.listingImage}" style="width:100%;height:100%;border-radius:10px;object-fit:cover;">` : "📦"}
+                    </div>
+                    <div class="chat-item-details">
+                        <div class="chat-item-title">${chat.listingTitle || "Item"}</div>
+                        <div class="chat-item-user">${otherUserName || "Student"}</div>
+                        <div class="chat-item-preview">${chat.lastMessage || "Started a chat..."}</div>
+                    </div>
+                `;
+
+                itemDiv.addEventListener("click", () => {
+                    openChatConversation(chatId, chat);
+                });
+
+                chatThreadsList.appendChild(itemDiv);
+            });
+        }, (err) => {
+            console.error("Chat threads listener error:", err);
+        });
+}
+
+function openChatConversation(chatId, chatData) {
+    currentChatId = chatId;
+
+    if (chatLayout) chatLayout.classList.add("in-conversation");
+
+    const otherUserName = (chatData.buyerUid === currentUser.uid) ? chatData.sellerName : chatData.buyerName;
+    if (chatHeaderTitle) chatHeaderTitle.textContent = chatData.listingTitle || "Item";
+    if (chatHeaderSub) chatHeaderSub.textContent = `Chatting with ${otherUserName || "Student"}`;
+
+    document.querySelectorAll(".chat-list-item").forEach(el => el.classList.remove("active-chat"));
+
+    if (chatData.lastSenderUid && chatData.lastSenderUid !== currentUser.uid) {
+        db.collection("chats").doc(chatId).update({
+            isRead: true,
+            unreadCount: 0
+        }).catch(err => console.warn("Failed marking chat read:", err));
+    }
+
+    if (unsubscribeMessages) unsubscribeMessages();
+    if (chatMessages) chatMessages.innerHTML = "";
+
+    unsubscribeMessages = db.collection("chats").doc(chatId)
+        .collection("messages")
+        .orderBy("createdAt", "asc")
+        .onSnapshot((snapshot) => {
+            if (!chatMessages) return;
+            chatMessages.innerHTML = "";
+
+            if (snapshot.empty) {
+                chatMessages.innerHTML = `<div style="text-align:center; color:#70807a; padding:20px; font-size:13px;">No messages yet. Send a message below!</div>`;
+                return;
+            }
+
+            snapshot.forEach((doc) => {
+                const msg = doc.data();
+                const isSentByMe = msg.senderUid === currentUser.uid;
+                const timeString = msg.createdAt ? new Date(msg.createdAt.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now";
+
+                const bubble = document.createElement("div");
+                bubble.className = `message-bubble ${isSentByMe ? "sent" : "received"}`;
+                bubble.innerHTML = `
+                    <p>${msg.text}</p>
+                    <span class="msg-time">${timeString}</span>
+                `;
+                chatMessages.appendChild(bubble);
+            });
+
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }, (err) => {
+            console.error("Messages load error:", err);
+        });
+}
+
+async function startChatWithItem(item) {
     if (!currentUser) {
-        favoritesGrid.innerHTML = `
-            <div style="grid-column:1/-1;text-align:center;color:#70807a;padding:40px;">
-                <p>Please sign in to view your favorites.</p>
-            </div>
-        `;
-
+        alert("Please sign in to chat with sellers.");
+        openAuthModal("signin");
         return;
     }
 
-    const favorites = marketplaceItems.filter(
-        item => userFavoriteIds.has(item.id)
+    if (item.sellerUid === currentUser.uid) {
+        alert("This is your own listing!");
+        return;
+    }
+
+    if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+    }
+
+    switchNavigationTab("messages");
+
+    const buyerUid = currentUser.uid;
+    const sellerUid = item.sellerUid || "seller";
+    const buyerName = currentUser.displayName || currentUser.email.split("@")[0];
+    const sellerName = item.sellerName || (item.sellerEmail ? item.sellerEmail.split("@")[0] : "Seller");
+
+    const chatId = `${item.id}_${buyerUid}`;
+    const chatDocRef = db.collection("chats").doc(chatId);
+    const chatDoc = await chatDocRef.get();
+
+    if (!chatDoc.exists) {
+        const initialText = `Hi! I'm interested in buying your ${item.name} for ₹${getPriceInRupees(item.price, item.currency)}. Is it still available on campus?`;
+
+        await chatDocRef.set({
+            listingId: item.id,
+            listingTitle: item.name,
+            listingPrice: item.price,
+            listingCurrency: item.currency || "INR",
+            listingImage: item.imageUrl || "",
+            buyerUid: buyerUid,
+            buyerName: buyerName,
+            sellerUid: sellerUid,
+            sellerName: sellerName,
+            participants: [buyerUid, sellerUid],
+            lastMessage: initialText,
+            lastSenderUid: buyerUid,
+            isRead: false,
+            unreadCount: 1,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        await chatDocRef.collection("messages").add({
+            senderUid: buyerUid,
+            senderName: buyerName,
+            text: initialText,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    }
+
+    const updatedSnap = await chatDocRef.get();
+    openChatConversation(chatId, updatedSnap.data());
+}
+
+async function sendChatMessage() {
+    if (!currentUser || !currentChatId || !chatInput) return;
+    const text = chatInput.value.trim();
+    if (!text) return;
+
+    chatInput.value = "";
+
+    try {
+        const chatDocRef = db.collection("chats").doc(currentChatId);
+
+        await chatDocRef.collection("messages").add({
+            senderUid: currentUser.uid,
+            senderName: currentUser.displayName || currentUser.email.split("@")[0],
+            text: text,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        await chatDocRef.update({
+            lastMessage: text,
+            lastSenderUid: currentUser.uid,
+            isRead: false,
+            unreadCount: firebase.firestore.FieldValue.increment(1),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    } catch (err) {
+        console.error("Error sending message:", err);
+    }
+}
+
+if (chatSendBtn) chatSendBtn.addEventListener("click", sendChatMessage);
+if (chatInput) {
+    chatInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            sendChatMessage();
+        }
+    });
+}
+
+if (chatBackBtn && chatLayout) {
+    chatBackBtn.addEventListener("click", () => {
+        chatLayout.classList.remove("in-conversation");
+    });
+}
+
+
+const pages = {
+    home: document.getElementById("homePage"),
+    messages: document.getElementById("messagesPage"),
+    sell: document.getElementById("sellPage"),
+    profile: document.getElementById("profilePage")
+};
+
+function switchNavigationTab(targetPage) {
+    if (!targetPage || !pages[targetPage]) return;
+
+    if ((targetPage === "sell" || targetPage === "profile") && !currentUser) {
+        alert("Please sign in with your verified email account first.");
+        openAuthModal("signin");
+        return;
+    }
+
+    document.querySelectorAll(".nav-link").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-page") === targetPage);
+    });
+
+    document.querySelectorAll(".bottom-tab-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-page") === targetPage);
+    });
+
+    Object.values(pages).forEach(p => {
+        if (p) p.classList.remove("active-page");
+    });
+    pages[targetPage].classList.add("active-page");
+
+    if (targetPage === "profile") {
+        renderFavorites();
+        renderMyListings();
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+document.querySelectorAll(".nav-link").forEach(btn => {
+    btn.addEventListener("click", () => switchNavigationTab(btn.getAttribute("data-page")));
+});
+document.querySelectorAll(".bottom-tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => switchNavigationTab(btn.getAttribute("data-page")));
+});
+
+
+const categoryButtons = document.querySelectorAll(".category-card");
+categoryButtons.forEach(button => {
+    button.addEventListener("click", () => {
+        const category = button.dataset.category;
+
+        if (activeSelectedCategory === category) {
+            activeSelectedCategory = null;
+            categoryButtons.forEach(b => b.classList.remove("selected-category"));
+            renderProducts(marketplaceItems);
+        } else {
+            activeSelectedCategory = category;
+            categoryButtons.forEach(b => b.classList.toggle("selected-category", b.dataset.category === category));
+            const filtered = marketplaceItems.filter(item => item.category === category);
+            renderProducts(filtered);
+        }
+
+        switchNavigationTab("home");
+        const marketSection = document.querySelector(".marketplace-section");
+        if (marketSection) marketSection.scrollIntoView({ behavior: "smooth" });
+    });
+});
+
+
+const searchInput = document.getElementById("searchInput");
+const searchButton = document.getElementById("searchButton");
+const searchSuggestions = document.getElementById("searchSuggestions");
+
+function performSearch(query) {
+    if (!query) {
+        if (searchSuggestions) searchSuggestions.classList.add("hidden");
+        renderProducts(activeSelectedCategory ? marketplaceItems.filter(i => i.category === activeSelectedCategory) : marketplaceItems);
+        return;
+    }
+
+    let matches = marketplaceItems.filter(item =>
+        item.name.toLowerCase().includes(query) || item.category.toLowerCase().includes(query)
     );
 
-    if (!favorites.length) {
-        favoritesGrid.innerHTML = `
-            <div style="grid-column:1/-1;text-align:center;color:#70807a;padding:40px;">
-                <h3>No Favorites Yet</h3>
-                <p>Items you favorite will appear here.</p>
-            </div>
-        `;
+    matches.sort((a, b) => {
+        const aStarts = a.name.toLowerCase().startsWith(query);
+        const bStarts = b.name.toLowerCase().startsWith(query);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+        return 0;
+    });
 
+    renderProducts(matches);
+}
+
+if (searchInput) {
+    searchInput.addEventListener("input", function() {
+        performSearch(this.value.trim().toLowerCase());
+    });
+}
+if (searchButton) {
+    searchButton.addEventListener("click", (e) => {
+        e.preventDefault();
+        performSearch(searchInput.value.trim().toLowerCase());
+    });
+}
+
+
+const createListingForm = document.getElementById("createListingForm");
+const itemImageInput = document.getElementById("itemImage");
+const triggerImageBtn = document.getElementById("triggerImageBtn");
+const imagePreview = document.getElementById("imagePreview");
+const formError = document.getElementById("formError");
+
+if (triggerImageBtn && itemImageInput) {
+    triggerImageBtn.addEventListener("click", () => itemImageInput.click());
+    itemImageInput.addEventListener("change", function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                if (imagePreview) imagePreview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
+if (createListingForm) {
+    createListingForm.addEventListener("submit", async function(e) {
+        e.preventDefault();
+
+        if (!currentUser) {
+            alert("Please sign in before posting an item.");
+            openAuthModal("signin");
+            return;
+        }
+
+        const name = document.getElementById("itemName").value.trim();
+        const price = parseFloat(document.getElementById("itemPrice").value);
+        const currency = document.getElementById("itemCurrency") ? document.getElementById("itemCurrency").value : "INR";
+        const category = document.getElementById("itemCategory").value;
+        const desc = document.getElementById("itemDescription").value.trim();
+        const imageFile = itemImageInput.files[0];
+
+        if (!name || isNaN(price) || !category || !desc || !imageFile) {
+            if (formError) {
+                formError.textContent = "Please fill out all fields and upload an image.";
+                formError.classList.remove("hidden");
+            }
+            return;
+        }
+
+        const submitBtn = createListingForm.querySelector(".submit-btn");
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Uploading image...";
+
+        try {
+            const formData = new FormData();
+            formData.append("file", imageFile);
+            formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+            const uploadRes = await fetch(
+                `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+                { method: "POST", body: formData }
+            );
+
+            if (!uploadRes.ok) throw new Error("Image upload failed.");
+            const uploadData = await uploadRes.json();
+
+            submitBtn.textContent = "Saving listing...";
+
+            await db.collection("listings").add({
+                name: name,
+                price: price,
+                currency: currency,
+                category: category,
+                description: desc,
+                imageUrl: uploadData.secure_url,
+                sellerName: currentUser.displayName || currentUser.email.split("@")[0],
+                sellerEmail: currentUser.email,
+                sellerUid: currentUser.uid,
+                isSold: false,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            alert("Success! Your item is live on NMIT Bazaar.");
+            createListingForm.reset();
+            if (imagePreview) imagePreview.innerHTML = `<span>+ Upload Image</span>`;
+            
+            switchNavigationTab("home");
+
+        } catch (err) {
+            console.error(err);
+            if (formError) {
+                formError.textContent = err.message || "Failed to publish listing.";
+                formError.classList.remove("hidden");
+            }
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Publish Listing";
+        }
+    });
+}
+
+
+const desktopProfileNavLink = document.getElementById("desktopProfileNavLink");
+const bottomProfileTab = document.getElementById("bottomProfileTab");
+const authBtn = document.getElementById("authBtn");
+const mobileAuthBtn = document.getElementById("mobileAuthBtn");
+const authModal = document.getElementById("authModal");
+const closeAuthModal = document.getElementById("closeAuthModal");
+const authForm = document.getElementById("authForm");
+const authEmail = document.getElementById("authEmail");
+const authPassword = document.getElementById("authPassword");
+const passwordGroup = document.getElementById("passwordGroup");
+const authError = document.getElementById("authError");
+const authSuccess = document.getElementById("authSuccess");
+const authModalTitle = document.getElementById("authModalTitle");
+const authSubmitBtn = document.getElementById("authSubmitBtn");
+const tabSignIn = document.getElementById("tabSignIn");
+const tabSignUp = document.getElementById("tabSignUp");
+const authTabsContainer = document.getElementById("authTabsContainer");
+const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
+
+function updateAuthButtonTexts(text) {
+    if (authBtn) authBtn.textContent = text;
+    if (mobileAuthBtn) mobileAuthBtn.textContent = text;
+}
+
+auth.onAuthStateChanged(async (user) => {
+    
+    if (user && !user.emailVerified) {
+        currentUser = null;
+        updateAuthButtonTexts("Sign In");
+        if (desktopProfileNavLink) desktopProfileNavLink.classList.add("hidden");
+        if (bottomProfileTab) bottomProfileTab.classList.add("hidden");
         return;
     }
 
-    favoritesGrid.innerHTML = "";
-
-    favorites.forEach(item => {
-        const card = document.createElement("article");
-
-        card.className =
-            `product-card ${item.isSold ? "is-sold" : ""}`;
-
-        card.dataset.id = item.id;
-
-        const imageContent = item.imageUrl
-            ? `<img src="${escapeHTML(item.imageUrl)}" alt="${escapeHTML(item.name)}">`
-            : `<div class="product-placeholder">📦</div>`;
-
-        card.innerHTML = `
-            ${item.isSold ? `<span class="sold-ribbon">Sold</span>` : ""}
-
-            <button type="button" class="favorite-icon-active" data-id="${item.id}">
-                ♥
-            </button>
-
-            <div class="product-image">
-                ${imageContent}
-            </div>
-
-            <div class="product-info">
-                <div class="product-category">
-                    ${escapeHTML(item.category || "")}
-                </div>
-
-                <div class="product-name">
-                    ${escapeHTML(item.name || "")}
-                </div>
-
-                <div class="product-price">
-                    ${formatMarketplacePrice(item)}
-                </div>
-            </div>
-        `;
-
-        card.querySelector(".product-image")?.addEventListener(
-            "click",
-            () => openProductDetailModal(item.id)
-        );
-
-        card.querySelector(".product-info")?.addEventListener(
-            "click",
-            () => openProductDetailModal(item.id)
-        );
-
-        card.querySelector(".favorite-icon-active")?.addEventListener(
-            "click",
-            event => {
-                event.stopPropagation();
-                toggleFavorite(item.id);
-            }
-        );
-
-        favoritesGrid.appendChild(card);
-    });
-}
-
-async function loadAllUserListings() {
-    try {
-        const snapshot = await db
-            .collection("listings")
-            .get();
-
-        allUserListings = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-    } catch (error) {
-        console.error("Unable to load user listings:", error);
-        allUserListings = [];
-    }
-}
-
-function setActiveProfileTab(tabName) {
-    document.querySelectorAll(".profile-tab").forEach(tab => {
-        tab.classList.toggle(
-            "active",
-            tab.dataset.tab === tabName
-        );
-    });
-
-    document.querySelectorAll(".tab-content").forEach(content => {
-        content.classList.remove("active-tab");
-    });
-
-    const target =
-        document.getElementById(`${tabName}Tab`);
-
-    target?.classList.add("active-tab");
-}
-
-function handleSearchInput() {
-    const searchInput =
-        document.getElementById("searchInput");
-
-    if (!searchInput) return;
-
-    if (searchInput.value.trim()) {
-        showSearchSuggestions();
-    } else {
-        document
-            .getElementById("searchSuggestions")
-            ?.classList.add("hidden");
-    }
-
-    filterMarketplace();
-}
-
-function setupEventListeners() {
-    document.querySelectorAll(".nav-link").forEach(button => {
-        button.addEventListener("click", () => {
-            switchNavigationTab(button.dataset.page);
-        });
-    });
-
-    document.querySelectorAll(".bottom-tab-btn").forEach(button => {
-        button.addEventListener("click", () => {
-            switchNavigationTab(button.dataset.page);
-        });
-    });
-
-    document
-        .getElementById("authBtn")
-        ?.addEventListener("click", handleAuthButtonClick);
-
-    document
-        .getElementById("mobileAuthBtn")
-        ?.addEventListener("click", handleAuthButtonClick);
-
-    document
-        .getElementById("searchInput")
-        ?.addEventListener("input", handleSearchInput);
-
-    document
-        .getElementById("searchInput")
-        ?.addEventListener("keydown", event => {
-            if (event.key === "Enter") {
-                performSearch();
-            }
-        });
-
-    document
-        .getElementById("searchButton")
-        ?.addEventListener("click", performSearch);
-
-    document.querySelectorAll(".category-card").forEach(card => {
-        card.addEventListener("click", () => {
-            selectCategory(card.dataset.category);
-        });
-    });
-
-    document
-        .getElementById("sellForm")
-        ?.addEventListener("submit", handleSellFormSubmit);
-
-    document
-        .getElementById("authForm")
-        ?.addEventListener("submit", handleAuthSubmit);
-
-    document
-        .getElementById("signInTab")
-        ?.addEventListener("click", () => {
-            authMode = "signin";
-            updateAuthModal();
-        });
-
-    document
-        .getElementById("signUpTab")
-        ?.addEventListener("click", () => {
-            authMode = "signup";
-            updateAuthModal();
-        });
-
-    document
-        .getElementById("signOutBtn")
-        ?.addEventListener("click", signOutUser);
-
-    document
-        .getElementById("editProfileForm")
-        ?.addEventListener("submit", event => {
-            event.preventDefault();
-            saveUserProfile();
-        });
-
-    document
-        .getElementById("editItemForm")
-        ?.addEventListener("submit", saveEditedItem);
-
-    document
-        .getElementById("contactSellerBtn")
-        ?.addEventListener("click", contactSeller);
-
-    document
-        .getElementById("modalFavoriteBtn")
-        ?.addEventListener("click", () => {
-            if (activeViewingItem) {
-                toggleFavorite(activeViewingItem.id);
-            }
-        });
-
-    document
-        .getElementById("chatSendBtn")
-        ?.addEventListener("click", sendChatMessage);
-
-    document
-        .getElementById("chatInput")
-        ?.addEventListener("keydown", event => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                sendChatMessage();
-            }
-        });
-
-    document
-        .getElementById("chatBackBtn")
-        ?.addEventListener("click", closeMobileChat);
-
-    document
-        .getElementById("editProfileBtn")
-        ?.addEventListener("click", openEditProfileModal);
-
-    document
-        .getElementById("modalProductImage")
-        ?.addEventListener("click", event => {
-            if (event.target.src) {
-                openImageLightbox(event.target.src);
-            }
-        });
-}
-
-function updateLoadingScreen() {
-    const loadingScreen =
-        document.getElementById("loadingScreen");
-
-    const app =
-        document.getElementById("app");
-
-    if (!loadingScreen || !app) return;
-
-    loadingScreen.classList.add("hide");
-    app.classList.remove("hidden");
-
-    setTimeout(() => {
-        loadingScreen.remove();
-    }, 500);
-}
-
-auth.onAuthStateChanged(async user => {
     currentUser = user;
+    if (user && user.emailVerified) {
+        updateAuthButtonTexts("Sign Out");
+        if (desktopProfileNavLink) desktopProfileNavLink.classList.remove("hidden");
+        if (bottomProfileTab) bottomProfileTab.classList.remove("hidden");
 
-    updateAuthButtons();
+        await loadUserProfile(user.uid);
+        subscribeToUserFavorites(user.uid);
+        monitorUnreadMessages(user.uid);
+        subscribeToUserChats();
+        renderMyListings();
+        renderFavorites();
+    } else {
+        updateAuthButtonTexts("Sign In");
+        if (desktopProfileNavLink) desktopProfileNavLink.classList.add("hidden");
+        if (bottomProfileTab) bottomProfileTab.classList.add("hidden");
 
-    if (currentUser) {
-        await loadUserFavorites();
-        await loadAllUserListings();
+        if (unsubscribeThreads) unsubscribeThreads();
+        if (unsubscribeMessages) unsubscribeMessages();
+        if (unsubscribeUnreadBadge) unsubscribeUnreadBadge();
+        if (unsubscribeUserFavorites) unsubscribeUserFavorites();
 
-        if (!hasRequestedNotificationPermission) {
-            hasRequestedNotificationPermission = true;
+        userFavoriteIds.clear();
+        currentChatId = null;
+        if (chatThreadsList) chatThreadsList.innerHTML = "";
+        if (chatMessages) chatMessages.innerHTML = "";
 
-            if (
-                "Notification" in window &&
-                Notification.permission === "default"
-            ) {
-                try {
-                    await Notification.requestPermission();
-                } catch (error) {
-                    console.warn(error);
+        document.getElementById("userNameDisplay").textContent = "—";
+        document.getElementById("userProgramDisplay").textContent = "Program not set";
+        document.getElementById("userDeptDisplay").textContent = "Department not set";
+        document.getElementById("userYearDisplay").textContent = "—";
+
+        const dBadge = document.getElementById("desktopUnreadBadge");
+        const mBadge = document.getElementById("mobileUnreadBadge");
+        if (dBadge) dBadge.classList.add("hidden");
+        if (mBadge) mBadge.classList.add("hidden");
+
+        renderProducts(marketplaceItems);
+    }
+});
+
+async function loadUserProfile(uid) {
+    try {
+        const docSnap = await db.collection("users").doc(uid).get();
+        if (docSnap.exists) {
+            const data = docSnap.data();
+            document.getElementById("userNameDisplay").textContent = data.fullName || currentUser.email.split("@")[0];
+            document.getElementById("userProgramDisplay").textContent = data.program || "Program not set";
+            document.getElementById("userDeptDisplay").textContent = data.department || "Department not set";
+            document.getElementById("userYearDisplay").textContent = data.joiningYear || "—";
+            return true;
+        }
+        return false;
+    } catch (e) {
+        console.error("Error loading profile:", e);
+        return false;
+    }
+}
+
+function monitorUnreadMessages(uid) {
+    const desktopBadge = document.getElementById("desktopUnreadBadge");
+    const mobileBadge = document.getElementById("mobileUnreadBadge");
+
+    if (unsubscribeUnreadBadge) unsubscribeUnreadBadge();
+
+    unsubscribeUnreadBadge = db.collection("chats")
+        .where("participants", "array-contains", uid)
+        .onSnapshot((snapshot) => {
+            let totalUnread = 0;
+            let newestIncomingMessage = null;
+
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.lastSenderUid && data.lastSenderUid !== uid && data.isRead === false) {
+                    totalUnread += (data.unreadCount || 1);
+                    if (!newestIncomingMessage || (data.updatedAt && data.updatedAt > newestIncomingMessage.updatedAt)) {
+                        newestIncomingMessage = data;
+                    }
+                }
+            });
+
+            const updateBadge = (el) => {
+                if (!el) return;
+                if (totalUnread > 0) {
+                    el.textContent = totalUnread > 99 ? "99+" : totalUnread;
+                    el.classList.remove("hidden");
+                } else {
+                    el.classList.add("hidden");
+                }
+            };
+
+            updateBadge(desktopBadge);
+            updateBadge(mobileBadge);
+
+            if (totalUnread > previousUnreadCount && newestIncomingMessage) {
+                if ("Notification" in window && Notification.permission === "granted") {
+                    const senderTitle = newestIncomingMessage.buyerUid === uid 
+                        ? newestIncomingMessage.sellerName 
+                        : newestIncomingMessage.buyerName;
+
+                    try {
+                        const notif = new Notification(`New message from ${senderTitle || "Student"}`, {
+                            body: newestIncomingMessage.lastMessage || "Sent an inquiry on NMIT Bazaar.",
+                            icon: "nmit-logo.png",
+                            badge: "nmit-logo.png"
+                        });
+                        notif.onclick = () => {
+                            window.focus();
+                            switchNavigationTab("messages");
+                        };
+                    } catch (e) {
+                        console.warn("Notification constructor error:", e);
+                    }
                 }
             }
-        }
-    } else {
-        userFavoriteIds = new Set();
-        allUserListings = [];
-    }
 
-    renderMarketplace();
-
-    if (
-        document
-            .getElementById("profilePage")
-            ?.classList.contains("active-page")
-    ) {
-        renderProfilePage();
-    }
-
-    if (
-        document
-            .getElementById("messagesPage")
-            ?.classList.contains("active-page")
-    ) {
-        loadMessageThreads();
-    }
-});
-
-async function initializeApp() {
-    setupEventListeners();
-
-    await fetchDailyExchangeRates();
-    await loadMarketplaceItems();
-
-    await loadAllUserListings();
-
-    renderProfilePage();
-
-    setTimeout(updateLoadingScreen, 700);
+            previousUnreadCount = totalUnread;
+        }, (err) => {
+            console.error("Badge sync error:", err);
+        });
 }
 
-document.addEventListener("DOMContentLoaded", initializeApp);
+function setAuthMode(mode) {
+    authMode = mode;
+    if (authError) authError.classList.add("hidden");
+    if (authSuccess) authSuccess.classList.add("hidden");
 
-document.addEventListener("click", event => {
-    const suggestions =
-        document.getElementById("searchSuggestions");
-
-    const searchWrapper =
-        document.querySelector(".search-wrapper");
-
-    if (
-        suggestions &&
-        searchWrapper &&
-        !searchWrapper.contains(event.target)
-    ) {
-        suggestions.classList.add("hidden");
+    if (mode === "signin") {
+        authModalTitle.textContent = "Sign In";
+        authSubmitBtn.textContent = "Sign In";
+        passwordGroup.classList.remove("hidden");
+        authPassword.required = true;
+        authTabsContainer.classList.remove("hidden");
+        tabSignIn.classList.add("active");
+        tabSignUp.classList.remove("active");
+    } else if (mode === "signup") {
+        authModalTitle.textContent = "Create Account";
+        authSubmitBtn.textContent = "Register";
+        passwordGroup.classList.remove("hidden");
+        authPassword.required = true;
+        authTabsContainer.classList.remove("hidden");
+        tabSignUp.classList.add("active");
+        tabSignIn.classList.remove("active");
+    } else if (mode === "reset") {
+        authModalTitle.textContent = "Reset Password";
+        authSubmitBtn.textContent = "Send Reset Email";
+        passwordGroup.classList.add("hidden");
+        authPassword.required = false;
+        authTabsContainer.classList.add("hidden");
     }
+}
+
+function openAuthModal(mode = "signin") {
+    if (!authModal) return;
+    setAuthMode(mode);
+    authModal.classList.remove("hidden");
+}
+
+function closeAuthModalHandler() {
+    if (authModal) authModal.classList.add("hidden");
+    if (authForm) authForm.reset();
+}
+
+if (tabSignIn) tabSignIn.addEventListener("click", () => setAuthMode("signin"));
+if (tabSignUp) tabSignUp.addEventListener("click", () => setAuthMode("signup"));
+if (forgotPasswordBtn) forgotPasswordBtn.addEventListener("click", () => setAuthMode("reset"));
+if (closeAuthModal) closeAuthModal.addEventListener("click", closeAuthModalHandler);
+
+function handleAuthButtonClick() {
+    if (currentUser) {
+        if (confirm("Do you want to sign out?")) {
+            auth.signOut().then(() => switchNavigationTab("home"));
+        }
+    } else {
+        openAuthModal("signin");
+    }
+}
+
+if (authBtn) authBtn.addEventListener("click", handleAuthButtonClick);
+if (mobileAuthBtn) mobileAuthBtn.addEventListener("click", handleAuthButtonClick);
+
+if (authForm) {
+    authForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = authEmail.value.trim();
+        const password = authPassword.value;
+
+        if (authError) authError.classList.add("hidden");
+        if (authSuccess) authSuccess.classList.add("hidden");
+        authSubmitBtn.disabled = true;
+
+        try {
+            if (authMode === "reset") {
+                await auth.sendPasswordResetEmail(email);
+                authSuccess.textContent = `A password reset link was sent to ${email}. Check your inbox or spam folder.`;
+                authSuccess.classList.remove("hidden");
+            } else if (authMode === "signup") {
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                await userCredential.user.sendEmailVerification();
+                await auth.signOut(); 
+
+                alert(`Account created! A verification link has been sent to ${email}.\n\n⚠️ Check Spam or Promotions if it doesn't appear within 1 minute, and tap "Report Not Spam". You can sign in once verified!`);
+                closeAuthModalHandler();
+                openAuthModal("signin");
+            } else {
+                
+                try {
+                    const userCredential = await auth.signInWithEmailAndPassword(email, password);
+                    const user = userCredential.user;
+
+                    
+                    if (!user.emailVerified) {
+                        await auth.signOut();
+
+                        const resend = confirm(
+                            `Your email (${email}) has not been verified yet.\n\n` +
+                            `Please click the link sent to your inbox or spam folder before logging in.\n\n` +
+                            `Would you like to resend the verification link?`
+                        );
+
+                        if (resend) {
+                            
+                            const tempCredential = await auth.signInWithEmailAndPassword(email, password);
+                            await tempCredential.user.sendEmailVerification();
+                            await auth.signOut();
+                            alert(`A new verification link has been sent to ${email}. Please verify your email and sign in.`);
+                        }
+                        return;
+                    }
+
+                    if ("Notification" in window && Notification.permission === "default") {
+                        Notification.requestPermission();
+                    }
+
+                    closeAuthModalHandler();
+                    const profileExists = await loadUserProfile(user.uid);
+                    switchNavigationTab("profile");
+                    if (!profileExists) {
+                        setTimeout(() => openEditProfileModalForSetup(), 300);
+                    }
+                } catch (loginErr) {
+                    if (loginErr.code === "auth/user-not-found" || loginErr.code === "auth/invalid-credential") {
+                        throw new Error("Account not registered. Please register first.");
+                    } else if (loginErr.code === "auth/wrong-password") {
+                        throw new Error("Incorrect password. Please try again or reset your password.");
+                    } else {
+                        throw loginErr;
+                    }
+                }
+            }
+        } catch (err) {
+            authError.textContent = err.message;
+            authError.classList.remove("hidden");
+        } finally {
+            authSubmitBtn.disabled = false;
+        }
+    });
+}
+
+
+const editProfileBtn = document.getElementById("editProfileBtn");
+const editProfileModal = document.getElementById("editProfileModal");
+const closeProfileModal = document.getElementById("closeProfileModal");
+const cancelProfileModal = document.getElementById("cancelProfileModal");
+const editProfileForm = document.getElementById("editProfileForm");
+const editJoiningYear = document.getElementById("editJoiningYear");
+const programPills = document.querySelectorAll(".program-pill-btn");
+const selectedProgramInput = document.getElementById("selectedProgramInput");
+
+if (editJoiningYear) editJoiningYear.max = new Date().getFullYear();
+
+programPills.forEach(pill => {
+    pill.addEventListener("click", () => {
+        programPills.forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+        if (selectedProgramInput) selectedProgramInput.value = pill.getAttribute("data-program");
+    });
 });
 
-window.openAuthModal = openAuthModal;
-window.closeAuthModal = closeAuthModal;
-window.signOutUser = signOutUser;
-window.switchNavigationTab = switchNavigationTab;
-window.openProductDetailModal = openProductDetailModal;
-window.closeProductDetailModal = closeProductDetailModal;
-window.openImageLightbox = openImageLightbox;
-window.closeImageLightbox = closeImageLightbox;
-window.openEditItemModal = openEditItemModal;
-window.closeEditItemModal = closeEditItemModal;
-window.openEditProfileModal = openEditProfileModal;
-window.closeEditProfileModal = closeEditProfileModal;
-window.toggleFavorite = toggleFavorite;
-window.toggleSoldStatus = toggleSoldStatus;
-window.openChat = openChat;
-window.closeMobileChat = closeMobileChat;
-window.sendChatMessage = sendChatMessage;
-window.setActiveProfileTab = setActiveProfileTab;
-window.selectCategory = selectCategory;
-window.performSearch = performSearch;
-window.contactSeller = contactSeller;
+function openEditProfileModalForSetup() {
+    if (!editProfileModal) return;
+
+    document.getElementById("editFullName").value = currentUser?.displayName || "";
+    document.getElementById("editDepartment").value = "";
+    editJoiningYear.value = "";
+
+    programPills.forEach((p, idx) => p.classList.toggle("active", idx === 0));
+    if (selectedProgramInput) selectedProgramInput.value = "Undergraduate - BTech";
+
+    editProfileModal.classList.remove("hidden");
+}
+
+if (editProfileBtn) {
+    editProfileBtn.addEventListener("click", () => {
+        if (!editProfileModal) return;
+
+        const currentName = document.getElementById("userNameDisplay").textContent;
+        const currentDept = document.getElementById("userDeptDisplay").textContent;
+        const currentYear = document.getElementById("userYearDisplay").textContent;
+
+        document.getElementById("editFullName").value = currentName !== "—" ? currentName : "";
+        document.getElementById("editDepartment").value = currentDept !== "Department not set" ? currentDept : "";
+        editJoiningYear.value = currentYear !== "—" ? currentYear : "";
+
+        editProfileModal.classList.remove("hidden");
+    });
+}
+
+if (closeProfileModal) closeProfileModal.addEventListener("click", () => editProfileModal.classList.add("hidden"));
+if (cancelProfileModal) cancelProfileModal.addEventListener("click", () => editProfileModal.classList.add("hidden"));
+
+if (editProfileForm) {
+    editProfileForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const newName = document.getElementById("editFullName").value.trim();
+        const newDept = document.getElementById("editDepartment").value.trim();
+        const enteredYear = parseInt(editJoiningYear.value, 10);
+        const thisYear = new Date().getFullYear();
+        const program = selectedProgramInput ? selectedProgramInput.value : "Undergraduate - BTech";
+
+        if (enteredYear > thisYear) {
+            alert(`Joining year cannot exceed ${thisYear}.`);
+            return;
+        }
+
+        if (currentUser) {
+            await db.collection("users").doc(currentUser.uid).set({
+                fullName: newName,
+                department: newDept,
+                program: program,
+                joiningYear: enteredYear,
+                email: currentUser.email,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        }
+
+        document.getElementById("userNameDisplay").textContent = newName;
+        document.getElementById("userDeptDisplay").textContent = newDept;
+        document.getElementById("userYearDisplay").textContent = enteredYear;
+        document.getElementById("userProgramDisplay").textContent = program;
+
+        editProfileModal.classList.add("hidden");
+    });
+}
+
+const profileTabs = document.querySelectorAll(".profile-tab");
+const tabContents = document.querySelectorAll(".tab-content");
+
+profileTabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+        const targetTabName = tab.getAttribute("data-tab");
+
+        profileTabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+
+        tabContents.forEach(pane => {
+            pane.classList.remove("active-tab");
+            pane.classList.add("hidden");
+        });
+
+        const targetPane = document.getElementById(targetTabName + "Tab");
+        if (targetPane) {
+            targetPane.classList.remove("hidden");
+            targetPane.classList.add("active-tab");
+        }
+
+        if (targetTabName === "listings") {
+            renderMyListings();
+        } else if (targetTabName === "favorites") {
+            renderFavorites();
+        }
+    });
+});
