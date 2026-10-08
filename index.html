@@ -3,97 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NMIT Bazaar</title>
+    <title>NMIT Bazaar - Campus Marketplace</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=Pacifico&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800;900&family=Pacifico&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+
+    <!-- Firebase App (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-    <!-- =====================================================
-         POP LOADING SCREEN
-    ===================================================== -->
+
+    <!-- 0. POP LOADING SCREEN -->
     <div id="loadingScreen" class="loading-screen">
         <div class="loading-content">
-            <img src="nmit-logo.png" alt="NMIT Logo" class="loading-logo-image" onerror="this.style.display='none'">
-            <div class="loading-bazaar">BAZAAR</div>
-            <div class="loading-tagline">CONNECT. TRADE. THRIVE.</div>
+            <img src="nmit-logo.png" alt="NMIT Logo" class="loading-logo-image">
+            <div class="loading-bazaar">NMIT BAZAAR</div>
+            <div class="loading-tagline">CAMPUS MARKETPLACE</div>
             <div class="loading-spinner"></div>
-            <p class="loading-text">Loading Your Marketplace...</p>
+            <div class="loading-text">Connecting to campus network...</div>
         </div>
     </div>
 
-    <!-- =====================================================
-         APPLICATION
-    ===================================================== -->
+    <!-- MAIN WRAPPER -->
     <div id="app" class="app hidden">
-        <!-- TOP APP BAR -->
+
+        <!-- TOP NAVBAR -->
         <header class="navbar">
             <div class="nav-brand">
                 <div class="brand-logo">
-                    <img src="nmit-logo.png" alt="NMIT Logo" onerror="this.style.display='none'">
+                    <img src="nmit-logo.png" alt="NMIT Logo">
                 </div>
-                <div class="brand-details">
+                <div>
                     <div class="brand-name">NMIT <span>BAZAAR</span></div>
-                    <div class="brand-subtitle">CAMPUS MARKETPLACE</div>
+                    <div class="brand-subtitle">STUDENT RESALE PORTAL</div>
                 </div>
             </div>
 
-            <!-- DESKTOP NAV LINKS -->
+            <!-- DESKTOP NAVIGATION -->
             <nav class="nav-links desktop-nav">
-                <button class="nav-link active" data-page="home">Home</button>
+                <button class="nav-link active" data-page="home">
+                    <svg class="nav-icon-svg" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                    <span>Home</span>
+                </button>
                 <button class="nav-link" data-page="messages" style="position: relative;">
-                    <svg class="nav-icon-svg" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
+                    <svg class="nav-icon-svg" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
                     <span>Messages</span>
-                    <span class="unread-bubble-badge hidden" id="desktopUnreadBadge">0</span>
+                    <span id="desktopUnreadBadge" class="unread-bubble-badge hidden">0</span>
                 </button>
                 <button class="nav-link sell-nav" data-page="sell">
-                    <span class="sell-plus">+</span><span>Sell</span>
+                    <span class="sell-plus">+</span>
+                    <span>SELL</span>
                 </button>
                 <button class="nav-link profile-nav hidden" id="desktopProfileNavLink" data-page="profile">
-                    <img src="profile.png" alt="Profile" onerror="this.style.display='none'">
+                    <img src="profile.png" alt="Profile">
                     <span>Profile</span>
                 </button>
+                <button id="authBtn" class="auth-nav-btn">Sign In</button>
             </nav>
-
-            <div class="nav-actions">
-                <button id="authBtn" type="button" class="auth-nav-btn">Sign In</button>
-            </div>
         </header>
 
-        <!-- MOBILE BOTTOM DOCK -->
-        <nav class="mobile-bottom-nav">
-            <button class="bottom-tab-btn active" data-page="home">
-                <span class="b-icon">🏠</span>
-                <span class="b-text">Home</span>
-            </button>
-            <button class="bottom-tab-btn" data-page="messages" style="position: relative;">
-                <span class="b-icon">💬</span>
-                <span class="b-text">Messages</span>
-                <span class="unread-bubble-badge hidden" id="mobileUnreadBadge">0</span>
-            </button>
-            <button class="bottom-tab-btn bottom-sell-btn" data-page="sell">
-                <div class="b-plus">+</div>
-                <span class="b-text">Sell</span>
-            </button>
-            <button class="bottom-tab-btn hidden" id="bottomProfileTab" data-page="profile">
-                <span class="b-icon">👤</span>
-                <span class="b-text">Profile</span>
-            </button>
-        </nav>
-
-        <!-- =====================================================
-             HOME PAGE
-        ===================================================== -->
+        <!-- PAGE 1: HOME -->
         <main id="homePage" class="page active-page">
             <section class="hero">
                 <div class="hero-content">
                     <div class="marketplace-heading">
-                        <span class="nmit-word">NMIT</span>
-                        <span class="marketplace-word">STUDENT MARKETPLACE</span>
+                        <span class="nmit-word">NMIT</span> <span class="marketplace-word">MARKETPLACE</span>
                     </div>
-                    <h1>Everything you need, <span>right on campus.</span></h1>
-                    <p class="hero-description">Buy, sell and discover useful items from fellow NMITians.</p>
+                    <h1>Buy & Sell Directly Inside <span>NMIT</span> Campus</h1>
+                    <p class="hero-description">Books, electronics, lab supplies & student essentials</p>
                 </div>
                 <div class="hero-decoration"></div>
             </section>
@@ -102,7 +82,7 @@
                 <div class="search-wrapper">
                     <div class="search-glow"></div>
                     <div class="search-box">
-                        <input id="searchInput" type="text" placeholder="Search books, electronics, lab supplies..." autocomplete="off">
+                        <input type="text" id="searchInput" placeholder="Search books, lab coats, components..." autocomplete="off">
                         <button id="searchButton" class="search-button" aria-label="Search"></button>
                     </div>
                     <div id="searchSuggestions" class="search-suggestions hidden"></div>
@@ -110,9 +90,10 @@
             </section>
 
             <!-- CATEGORIES -->
-            <section class="section">
+            <section class="section categories-section">
                 <div class="section-heading">
-                    <div><h2>Browse Categories</h2></div>
+                    <span class="section-label">BROWSE BY CATEGORY</span>
+                    <h2>Categories</h2>
                 </div>
                 <div class="category-grid">
                     <button class="category-card" data-category="Books">
@@ -142,131 +123,126 @@
                 </div>
             </section>
 
-            <!-- MARKETPLACE FEED -->
+            <!-- MARKETPLACE PRODUCTS -->
             <section class="section marketplace-section">
                 <div class="marketplace-header">
                     <div>
-                        <span class="section-label">MARKETPLACE</span>
-                        <h2>Items Available</h2>
+                        <span class="section-label">CAMPUS FEED</span>
+                        <h2>Available Listings</h2>
                     </div>
-                    <span id="resultCount" class="result-count">0 items</span>
+                    <div id="resultCount" class="result-count">Loading items...</div>
                 </div>
                 <div id="productGrid" class="product-grid"></div>
             </section>
         </main>
 
-        <!-- =====================================================
-             MESSAGES PAGE
-        ===================================================== -->
+        <!-- PAGE 2: MESSAGES -->
         <main id="messagesPage" class="page">
-            <section class="simple-page chat-page">
+            <div class="simple-page chat-page">
                 <div class="chat-layout">
-                    <!-- THREADS SIDEBAR -->
                     <div class="chat-sidebar">
                         <div class="chat-header">
-                            <h2>Messages</h2>
+                            <h2>Chats</h2>
                         </div>
-                        <div class="chat-list" id="chatThreadsList">
-                            <div style="padding: 24px; text-align: center; color: #70807a; font-size: 13px;">
-                                Loading conversations...
-                            </div>
-                        </div>
+                        <div id="chatThreadsList" class="chat-list"></div>
                     </div>
-
-                    <!-- CONVERSATION WINDOW -->
                     <div class="chat-window">
                         <div class="chat-window-header">
-                            <button id="chatBackBtn" class="chat-back-btn" title="Back to inbox">←</button>
-                            <div class="chat-item-img" id="chatHeaderImg">💬</div>
+                            <button id="chatBackBtn" class="chat-back-btn" title="Back to chats">←</button>
                             <div class="chat-window-info">
-                                <h3 id="chatHeaderTitle">Campus Messages</h3>
-                                <span id="chatHeaderSub">Chat directly with student sellers</span>
+                                <h3 id="chatHeaderTitle">Select a Conversation</h3>
+                                <span id="chatHeaderSub">Select a buyer or seller from the list</span>
                             </div>
                         </div>
-                        <div class="chat-messages" id="chatMessages">
-                            <div class="message-bubble received">
-                                <p>Select a conversation or tap "Chat with Seller" on any listing to start messaging.</p>
-                                <span class="msg-time">Now</span>
+                        <div id="chatMessages" class="chat-messages">
+                            <div style="text-align: center; color: #70807a; padding: 40px; font-size: 14px;">
+                                Tap "Chat with Seller" on any product card to start a chat!
                             </div>
                         </div>
                         <div class="chat-input-area">
-                            <input type="text" placeholder="Type a message..." class="chat-input" id="chatInput">
-                            <button class="chat-send-btn" id="chatSendBtn">➤</button>
+                            <input type="text" id="chatInput" class="chat-input" placeholder="Type a message..." autocomplete="off">
+                            <button id="chatSendBtn" class="chat-send-btn">➤</button>
                         </div>
                     </div>
                 </div>
-            </section>
+            </div>
         </main>
 
-        <!-- =====================================================
-             SELL PAGE
-        ===================================================== -->
+        <!-- PAGE 3: SELL ITEM -->
         <main id="sellPage" class="page">
-            <section class="simple-page">
-                
-                <h1>Create a Listing</h1>
-                
+            <div class="simple-page">
+                <div class="section-heading" style="text-align: center; margin-bottom: 25px;">
+                    <span class="section-label">POST AN AD</span>
+                    <h2>Sell on Campus</h2>
+                </div>
                 <div class="form-container">
                     <form id="createListingForm">
                         <div class="form-group image-upload-group">
                             <div id="imagePreview" class="image-preview">
                                 <span>+ Upload Image</span>
                             </div>
-                            <input type="file" id="itemImage" accept="image/*" required hidden>
+                            <input type="file" id="itemImage" accept="image/*" hidden>
                             <button type="button" id="triggerImageBtn" class="secondary-button">Choose Photo</button>
                         </div>
-            
+
                         <div class="form-group">
                             <label for="itemName">Item Name</label>
-                            <input type="text" id="itemName" placeholder="e.g., Engineering Mathematics Textbook" required>
+                            <input type="text" id="itemName" placeholder="e.g., Engineering Mathematics Textbook" required autocomplete="off">
                         </div>
-            
+
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="itemPrice">Price (₹)</label>
-                                <input type="number" id="itemPrice" placeholder="0" min="1" step="1" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="itemCategory">Category</label>
-                                <select id="itemCategory" required>
-                                    <option value="" disabled selected>Select category...</option>
-                                    <option value="Books">Books</option>
-                                    <option value="Electronics">Electronics</option>
-                                    <option value="Lab Supplies">Lab Supplies</option>
-                                    <option value="Accessories">Accessories</option>
-                                    <option value="Clothing">Clothing</option>
-                                    <option value="Others">Others</option>
+                                <label for="itemCurrency">Currency</label>
+                                <select id="itemCurrency">
+                                    <option value="INR" selected>₹ (INR)</option>
+                                    <option value="USD">$ (USD)</option>
+                                    <option value="EUR">€ (EUR)</option>
                                 </select>
                             </div>
+                            <div class="form-group">
+                                <label for="itemPrice">Price</label>
+                                <input type="number" id="itemPrice" placeholder="0" min="1" step="any" required>
+                            </div>
                         </div>
-            
+
+                        <div class="form-group">
+                            <label for="itemCategory">Category</label>
+                            <select id="itemCategory" required>
+                                <option value="" disabled selected>Select category</option>
+                                <option value="Books">Books</option>
+                                <option value="Electronics">Electronics</option>
+                                <option value="Lab Supplies">Lab Supplies</option>
+                                <option value="Accessories">Accessories</option>
+                                <option value="Clothing">Clothing</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+
                         <div class="form-group">
                             <label for="itemDescription">Description</label>
-                            <textarea id="itemDescription" rows="4" placeholder="Describe the item condition, details, etc." required></textarea>
+                            <textarea id="itemDescription" rows="4" placeholder="Describe the item condition, usage details, etc." required></textarea>
                         </div>
-            
+
                         <button type="submit" class="primary-button submit-btn">Publish Listing</button>
                         <div id="formError" class="form-error hidden"></div>
                     </form>
                 </div>
-            </section>
+            </div>
         </main>
 
-        <!-- =====================================================
-             PROFILE PAGE
-        ===================================================== -->
+        <!-- PAGE 4: PROFILE -->
         <main id="profilePage" class="page">
-            <section class="simple-page">
+            <div class="simple-page">
                 <div class="profile-header-card">
-                    <img src="profile.png" alt="Profile" class="profile-large" onerror="this.style.display='none'">
-                    <div class="profile-info">
+                    <img src="profile.png" alt="Profile" class="profile-large">
+                    <div class="profile-info" style="flex: 1;">
                         <h2 id="userNameDisplay">—</h2>
                         <p>
                             <span id="userProgramDisplay">Program not set</span> • 
                             <span id="userDeptDisplay">Department not set</span> • 
-                            Batch of <span id="userYearDisplay">—</span>
+                            Class of <span id="userYearDisplay">—</span>
                         </p>
-                        <button class="secondary-button edit-profile-btn" id="editProfileBtn">Edit Profile</button>
+                        <button id="editProfileBtn" class="secondary-button">Edit Profile</button>
                     </div>
                 </div>
 
@@ -282,145 +258,210 @@
                 <div id="listingsTab" class="tab-content hidden">
                     <div class="product-grid" id="myListingsGrid"></div>
                 </div>
-            </section>
+            </div>
         </main>
 
-        <!-- =====================================================
-             ITEM DETAIL & ZOOM MODAL
-        ===================================================== -->
+        <!-- MOBILE BOTTOM DOCK -->
+        <nav class="mobile-bottom-nav">
+            <button class="bottom-tab-btn active" data-page="home">
+                <span class="b-icon">🏠</span>
+                <span class="b-text">Home</span>
+            </button>
+            <button class="bottom-tab-btn" data-page="messages" style="position: relative;">
+                <span class="b-icon">💬</span>
+                <span class="b-text">Chat</span>
+                <span id="mobileUnreadBadge" class="unread-bubble-badge hidden">0</span>
+            </button>
+            <button class="bottom-tab-btn bottom-sell-btn" data-page="sell">
+                <span class="b-plus">+</span>
+                <span class="b-text">Sell</span>
+            </button>
+            <button class="bottom-tab-btn hidden" id="bottomProfileTab" data-page="profile">
+                <span class="b-icon">👤</span>
+                <span class="b-text">Profile</span>
+            </button>
+        </nav>
+
+        <!-- FOOTER -->
+        <footer>
+            <div class="footer-logo">
+                <img src="nmit-logo.png" alt="NMIT Logo">
+                <div>
+                    <h3 style="font-weight: 800;">NMIT Bazaar</h3>
+                    <p style="font-size: 11px; opacity: 0.7;">Official Student Resale Community</p>
+                </div>
+            </div>
+        </footer>
+
+        <!-- MODAL: PRODUCT DETAIL & ZOOM -->
         <div id="productDetailModal" class="modal-overlay hidden">
             <div class="modal-card product-modal-card">
                 <button id="closeDetailModal" class="modal-close-btn">&times;</button>
-                <div class="detail-image-box" id="detailImageWrapper" title="Click to zoom image">
-                    <img id="detailModalImg" src="" alt="Product">
-                    <span class="zoom-badge">🔍</span>
+                <div class="detail-image-box" id="detailImageWrapper">
+                    <img id="detailModalImg" src="" alt="Detail Image">
+                    <span class="zoom-badge">🔍 Tap to Zoom</span>
                 </div>
                 <div class="detail-body">
-                    <div class="detail-category" id="detailCategory">Category</div>
-                    <h2 class="detail-title" id="detailTitle">Item Name</h2>
-                    <div class="detail-price" id="detailPrice">₹0</div>
+                    <div id="detailCategory" class="detail-category"></div>
+                    <h3 id="detailTitle" class="detail-title"></h3>
+                    <div id="detailPrice" class="detail-price"></div>
                     <div class="detail-seller-box">
                         <div class="seller-meta">
                             <span class="seller-label">Seller</span>
-                            <span class="seller-name" id="detailSeller">Student</span>
+                            <span id="detailSeller" class="seller-name"></span>
                         </div>
-                        <button type="button" class="chat-with-seller-btn" id="modalChatSellerBtn">
-                            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
-                            <span>Chat with Seller</span>
+                        <button id="modalChatSellerBtn" class="chat-with-seller-btn">
+                            <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+                            Chat
                         </button>
                     </div>
-                    <p class="detail-description" id="detailDescription"></p>
+                    <p id="detailDescription" class="detail-description"></p>
                 </div>
             </div>
         </div>
 
-        <!-- FULL-SCREEN LIGHTBOX -->
+        <!-- LIGHTBOX IMAGE ZOOM -->
         <div id="imageLightbox" class="lightbox-overlay hidden">
             <span class="lightbox-close">&times;</span>
-            <img id="lightboxImg" src="" alt="Zoomed view">
+            <img id="lightboxImg" src="" alt="Enlarged preview">
         </div>
 
-        <!-- =====================================================
-             EDIT PROFILE MODAL
-        ===================================================== -->
-        <div id="editProfileModal" class="modal-overlay hidden">
-            <div class="modal-card">
+        <!-- MODAL: EDIT LISTING (FULL SELL-LIKE INTERFACE) -->
+        <div id="editListingModal" class="modal-overlay hidden">
+            <div class="modal-card edit-modal-card">
                 <div class="modal-header">
-                    <h3>Edit Profile</h3>
-                    <button id="closeProfileModal" class="modal-close-btn">&times;</button>
+                    <div>
+                        <span class="section-label">EDIT LISTING</span>
+                        <h3 style="margin-top: 4px;">Update Your Item</h3>
+                    </div>
+                    <button id="closeEditModal" class="modal-close-btn">&times;</button>
                 </div>
-                <form id="editProfileForm">
-                    <div class="modal-form-group">
-                        <label for="editFullName">Full Name</label>
-                        <input type="text" id="editFullName" required autocomplete="off">
+                <form id="editListingForm">
+                    <input type="hidden" id="editItemId">
+                    <div class="form-group image-upload-group">
+                        <div id="editImagePreview" class="image-preview">
+                            <img id="editImagePreviewImg" src="" alt="Listing preview">
+                        </div>
+                        <input type="file" id="editItemImage" accept="image/*" hidden>
+                        <button type="button" id="triggerEditImageBtn" class="secondary-button">Change Photo</button>
                     </div>
 
-                    <div class="modal-form-group">
-                        <label>Program</label>
-                        <input type="hidden" id="selectedProgramInput" value="Undergraduate - BTech">
-                        <div class="program-scroll-container">
-                            <button type="button" class="program-pill-btn active" data-program="Undergraduate - BTech">Undergraduate - BTech</button>
-                            <button type="button" class="program-pill-btn" data-program="Undergraduate - BSc (Hons) Program">Undergraduate - BSc (Hons) Program</button>
-                            <button type="button" class="program-pill-btn" data-program="Postgraduate">Postgraduate</button>
-                            <button type="button" class="program-pill-btn" data-program="Doctoral Programs">Doctoral Programs</button>
-                            <button type="button" class="program-pill-btn" data-program="Department of Applied Sciences">Department of Applied Sciences</button>
-                            <button type="button" class="program-pill-btn" data-program="Department of Humanities and Social Sciences">Department of Humanities and Social Sciences</button>
+                    <div class="form-group">
+                        <label for="editItemName">Item Name</label>
+                        <input type="text" id="editItemName" required autocomplete="off">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="editItemCurrency">Currency</label>
+                            <select id="editItemCurrency">
+                                <option value="INR">₹ (INR)</option>
+                                <option value="USD">$ (USD)</option>
+                                <option value="EUR">€ (EUR)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="editItemPrice">Price</label>
+                            <input type="number" id="editItemPrice" min="1" step="any" required>
                         </div>
                     </div>
 
-                    <div class="modal-form-group">
-                        <label for="editDepartment">Department</label>
-                        <input type="text" id="editDepartment" placeholder="e.g. Robotics & AI, CSE, Mechanical..." required autocomplete="off">
+                    <div class="form-group">
+                        <label for="editItemCategory">Category</label>
+                        <select id="editItemCategory" required>
+                            <option value="Books">Books</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Lab Supplies">Lab Supplies</option>
+                            <option value="Accessories">Accessories</option>
+                            <option value="Clothing">Clothing</option>
+                            <option value="Others">Others</option>
+                        </select>
                     </div>
 
-                    <div class="modal-form-group">
-                        <label for="editJoiningYear">College Joining Year</label>
-                        <input type="number" id="editJoiningYear" min="2010" required>
+                    <div class="form-group">
+                        <label for="editItemDescription">Description</label>
+                        <textarea id="editItemDescription" rows="3" required></textarea>
                     </div>
 
-                    <div class="modal-actions">
-                        <button type="button" id="cancelProfileModal" class="secondary-button">Cancel</button>
-                        <button type="submit" class="primary-button modal-save-btn">Save Changes</button>
+                    <div class="modal-actions" style="margin-top: 20px;">
+                        <button type="button" id="cancelEditModal" class="secondary-button">Cancel</button>
+                        <button type="submit" id="saveEditBtn" class="primary-button modal-save-btn">Update Listing</button>
                     </div>
+                    <div id="editFormError" class="form-error hidden"></div>
                 </form>
             </div>
         </div>
 
-        <!-- =====================================================
-             AUTH MODAL (UNIVERSAL EMAIL + RESET + VERIFICATION)
-        ===================================================== -->
+        <!-- MODAL: AUTHENTICATION -->
         <div id="authModal" class="modal-overlay hidden">
             <div class="modal-card auth-modal-card">
                 <div class="modal-header">
                     <h3 id="authModalTitle">Sign In</h3>
                     <button id="closeAuthModal" class="modal-close-btn">&times;</button>
                 </div>
-                
-                <div class="auth-toggle-tabs" id="authTabsContainer">
-                    <button type="button" class="auth-toggle-btn active" id="tabSignIn">Sign In</button>
-                    <button type="button" class="auth-toggle-btn" id="tabSignUp">Register</button>
+                <div id="authTabsContainer" class="auth-toggle-tabs">
+                    <button id="tabSignIn" class="auth-toggle-btn active">Sign In</button>
+                    <button id="tabSignUp" class="auth-toggle-btn">Sign Up</button>
                 </div>
-
                 <form id="authForm">
                     <div class="modal-form-group">
                         <label for="authEmail">Email Address</label>
-                        <input type="email" id="authEmail" placeholder="yourname@domain.com" required autocomplete="email">
+                        <input type="email" id="authEmail" placeholder="yourname@gmail.com" required autocomplete="username">
                     </div>
-
                     <div class="modal-form-group" id="passwordGroup">
                         <label for="authPassword">Password</label>
-                        <input type="password" id="authPassword" placeholder="Minimum 6 characters" required minlength="6" autocomplete="current-password">
+                        <input type="password" id="authPassword" placeholder="••••••••" required autocomplete="current-password">
                         <div class="auth-aux-links">
-                            <button type="button" id="forgotPasswordBtn" class="link-btn">Forgot Password?</button>
+                            <button type="button" id="forgotPasswordBtn" class="link-btn">Forgot password?</button>
                         </div>
                     </div>
-
-                    <button type="submit" id="authSubmitBtn" class="primary-button modal-save-btn auth-submit-btn">Sign In</button>
+                    <button type="submit" id="authSubmitBtn" class="primary-button auth-submit-btn">Sign In</button>
                     <div id="authError" class="form-error hidden"></div>
                     <div id="authSuccess" class="form-success hidden"></div>
                 </form>
             </div>
         </div>
 
-        <!-- FOOTER -->
-        <footer>
-            <div class="footer-logo">
-                <img src="nmit-logo.png" alt="NMIT Logo" onerror="this.style.display='none'">
-                <div>
-                    <strong>NMIT BAZAAR</strong>
-                    <p>Your campus. Your marketplace.</p>
+        <!-- MODAL: EDIT PROFILE -->
+        <div id="editProfileModal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3>Edit Student Profile</h3>
+                    <button id="closeProfileModal" class="modal-close-btn">&times;</button>
                 </div>
+                <form id="editProfileForm">
+                    <div class="modal-form-group">
+                        <label for="editFullName">Full Name</label>
+                        <input type="text" id="editFullName" placeholder="e.g., Arjun Rao" required>
+                    </div>
+                    <div class="modal-form-group">
+                        <label>Academic Program</label>
+                        <input type="hidden" id="selectedProgramInput" value="Undergraduate - BTech">
+                        <div class="program-scroll-container">
+                            <button type="button" class="program-pill-btn active" data-program="Undergraduate - BTech">BTech</button>
+                            <button type="button" class="program-pill-btn" data-program="Postgraduate - MTech">MTech</button>
+                            <button type="button" class="program-pill-btn" data-program="Postgraduate - MBA">MBA</button>
+                            <button type="button" class="program-pill-btn" data-program="Postgraduate - MCA">MCA</button>
+                        </div>
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="editDepartment">Department</label>
+                        <input type="text" id="editDepartment" placeholder="e.g., Robotics & AI / Computer Science" required>
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="editJoiningYear">Joining Year</label>
+                        <input type="number" id="editJoiningYear" placeholder="2024" min="2015" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" id="cancelProfileModal" class="secondary-button">Cancel</button>
+                        <button type="submit" class="primary-button modal-save-btn">Save Profile</button>
+                    </div>
+                </form>
             </div>
-        </footer>
+        </div>
+
     </div>
 
-    <!-- Firebase Core, Firestore, Auth & Messaging (v9 compat) -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
-
-    <!-- App Script -->
     <script src="script.js"></script>
 </body>
 </html>

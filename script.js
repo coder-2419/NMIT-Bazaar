@@ -1,7 +1,7 @@
 /* =====================================================
-   NMIT BAZAAR - CLIENT LOGIC (SPARK FREE TIER)
+   NMIT BAZAAR - CLIENT ARCHITECTURE (SPARK TIER)
 ===================================================== */
-console.log("Script connected successfully! 🚀");
+console.log("Script initialized with live FX market rates 🚀");
 
 /* =====================================================
    1. FIREBASE & CLOUDINARY CONFIGURATION
@@ -28,7 +28,8 @@ const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";
 let currentUser = null;
 let marketplaceItems = [];
 let activeViewingItem = null;
-let authMode = "signin"; // "signin" | "signup" | "reset"
+let activeSelectedCategory = null;
+let authMode = "signin";
 
 let currentChatId = null;
 let unsubscribeMessages = null;
@@ -39,7 +40,83 @@ let previousUnreadCount = 0;
 let hasRequestedNotificationPermission = false;
 
 /* =====================================================
-   2. INSTANT POP LOADING SCREEN
+   2. LIVE ONLINE FOREIGN EXCHANGE RATES (NO HARDCODING)
+===================================================== */
+let liveExchangeRatesToINR = {
+    INR: 1,
+    USD: 84.0,
+    EUR: 92.0
+};
+
+async function fetchDailyExchangeRates() {
+    const CACHE_KEY = "nmit_bazaar_forex_rates";
+    const CACHE_TIME_KEY = "nmit_bazaar_forex_timestamp";
+    const SIX_HOURS = 6 * 60 * 60 * 1000;
+
+    const cachedRates = localStorage.getItem(CACHE_KEY);
+    const cachedTime = localStorage.getItem(CACHE_TIME_KEY);
+
+    // Use cached rate if fetched within 6 hours
+    if (cachedRates && cachedTime && (Date.now() - Number(cachedTime) < SIX_HOURS)) {
+        try {
+            liveExchangeRatesToINR = JSON.parse(cachedRates);
+            return;
+        } catch (e) {
+            console.warn("Could not parse cached FX rates:", e);
+        }
+    }
+
+    try {
+        // Fetch daily exchange rates online
+        const res = await fetch("https://open.er-api.com/v6/latest/USD");
+        if (!res.ok) throw new Error("Network response was not ok");
+        
+        const data = await res.json();
+        if (data && data.rates && data.rates.INR) {
+            const inrPerUsd = data.rates.INR;
+            const inrPerEur = data.rates.EUR ? (inrPerUsd / data.rates.EUR) : (inrPerUsd * 1.08);
+
+            liveExchangeRatesToINR = {
+                INR: 1,
+                USD: Number(inrPerUsd.toFixed(2)),
+                EUR: Number(inrPerEur.toFixed(2))
+            };
+
+            localStorage.setItem(CACHE_KEY, JSON.stringify(liveExchangeRatesToINR));
+            localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
+            console.log("Live market exchange rates online sync completed:", liveExchangeRatesToINR);
+
+            if (marketplaceItems.length > 0) {
+                renderProducts(marketplaceItems);
+            }
+        }
+    } catch (err) {
+        console.warn("Live currency rates online fetch failed, using fallback:", err);
+    }
+}
+
+function getPriceInRupees(price, currency = "INR") {
+    const curr = (currency || "INR").toUpperCase();
+    const rate = liveExchangeRatesToINR[curr] || 1;
+    return Math.round(Number(price) * rate);
+}
+
+function formatMarketplacePrice(item) {
+    const inrVal = getPriceInRupees(item.price, item.currency || "INR");
+    const curr = (item.currency || "INR").toUpperCase();
+    
+    if (curr === "INR") {
+        return `₹${inrVal.toLocaleString("en-IN")}`;
+    }
+    const symbol = curr === "USD" ? "$" : (curr === "EUR" ? "€" : curr);
+    return `₹${inrVal.toLocaleString("en-IN")} <span class="currency-original-note">(${symbol}${item.price})</span>`;
+}
+
+// Initial fetch on boot
+fetchDailyExchangeRates();
+
+/* =====================================================
+   3. INSTANT POP LOADING SCREEN
 ===================================================== */
 window.addEventListener("DOMContentLoaded", () => {
     const loadingScreen = document.getElementById("loadingScreen");
@@ -57,7 +134,7 @@ window.addEventListener("DOMContentLoaded", () => {
 });
 
 /* =====================================================
-   3. REAL-TIME FIRESTORE LISTENER (FEED & FAVORITES)
+   4. REAL-TIME FIRESTORE LISTENER (FEED & FAVORITES)
 ===================================================== */
 db.collection("listings").orderBy("createdAt", "desc").onSnapshot((snapshot) => {
     marketplaceItems = [];
@@ -68,7 +145,14 @@ db.collection("listings").orderBy("createdAt", "desc").onSnapshot((snapshot) => 
         });
     });
     
-    renderProducts(marketplaceItems);
+    // Filter by active category if selected, otherwise render all
+    if (activeSelectedCategory) {
+        const filtered = marketplaceItems.filter(item => item.category === activeSelectedCategory);
+        renderProducts(filtered);
+    } else {
+        renderProducts(marketplaceItems);
+    }
+
     renderFavorites();
     renderMyListings();
 }, (error) => {
@@ -76,7 +160,7 @@ db.collection("listings").orderBy("createdAt", "desc").onSnapshot((snapshot) => 
 });
 
 /* =====================================================
-   4. RENDER MARKETPLACE PRODUCTS
+   5. RENDER MARKETPLACE PRODUCTS
 ===================================================== */
 const productGrid = document.getElementById("productGrid");
 const resultCount = document.getElementById("resultCount");
@@ -89,7 +173,7 @@ function renderProducts(items) {
     if (items.length === 0) {
         productGrid.innerHTML = `
             <div class="empty-state" style="grid-column:1/-1; text-align:center; padding:40px; color:#70807a;">
-                <h3>No items available yet</h3>
+                <h3>No items available</h3>
                 <p>Be the first one to post a listing!</p>
             </div>`;
         return;
@@ -112,7 +196,7 @@ function renderProducts(items) {
             <div class="product-info">
                 <div class="product-category">${item.category}</div>
                 <div class="product-name">${item.name}</div>
-                <span class="product-price">₹${item.price}</span>
+                <span class="product-price">${formatMarketplacePrice(item)}</span>
             </div>`;
         productGrid.appendChild(card);
     });
@@ -136,7 +220,7 @@ if (productGrid) {
 }
 
 /* =====================================================
-   5. PRODUCT DETAIL & ZOOM LIGHTBOX
+   6. PRODUCT DETAIL & ZOOM LIGHTBOX
 ===================================================== */
 const productDetailModal = document.getElementById("productDetailModal");
 const closeDetailModal = document.getElementById("closeDetailModal");
@@ -160,7 +244,7 @@ function openProductDetailModal(itemId) {
     detailModalImg.src = item.imageUrl || "nmit-logo.png";
     detailCategory.textContent = item.category;
     detailTitle.textContent = item.name;
-    detailPrice.textContent = `₹${item.price}`;
+    detailPrice.innerHTML = formatMarketplacePrice(item);
     
     const sellerName = item.sellerName || (item.sellerEmail ? item.sellerEmail.split("@")[0] : "Student Seller");
     detailSeller.textContent = sellerName;
@@ -202,7 +286,7 @@ if (modalChatSellerBtn) {
 }
 
 /* =====================================================
-   6. FAVORITES LOGIC
+   7. FAVORITES LOGIC
 ===================================================== */
 function toggleFavorite(itemId) {
     const item = marketplaceItems.find(i => i.id === itemId);
@@ -240,13 +324,12 @@ function renderFavorites() {
             <div class="product-info">
                 <div class="product-category">${item.category}</div>
                 <div class="product-name">${item.name}</div>
-                <span class="product-price">₹${item.price}</span>
+                <span class="product-price">${formatMarketplacePrice(item)}</span>
             </div>`;
         container.appendChild(card);
     });
 }
 
-const favoritesTab = document.getElementById("favoritesTab");
 if (favoritesTab) {
     favoritesTab.addEventListener("click", (e) => {
         const removeBtn = e.target.closest(".favorite-icon-active");
@@ -256,14 +339,14 @@ if (favoritesTab) {
         }
     });
 }
+
 /* =====================================================
-   7. MY LISTINGS (ROBUST PROFILE TAB RENDERER)
+   8. MY LISTINGS (EDIT, DELETE & SOLD TOGGLE)
 ===================================================== */
 function renderMyListings() {
     const myListingsGrid = document.getElementById("myListingsGrid");
     if (!myListingsGrid) return;
 
-    // Check auth status
     if (!currentUser) {
         myListingsGrid.innerHTML = `
             <div style="grid-column: 1/-1; text-align: center; color: #70807a; padding: 40px;">
@@ -273,7 +356,6 @@ function renderMyListings() {
         return;
     }
 
-    // Filter items owned by the current user (checking common UID keys)
     const myItems = marketplaceItems.filter(item => {
         return item.sellerUid === currentUser.uid || 
                item.userId === currentUser.uid ||
@@ -293,7 +375,7 @@ function renderMyListings() {
     myListingsGrid.innerHTML = "";
     myItems.forEach(item => {
         const card = document.createElement("article");
-        card.className = "product-card";
+        card.className = `product-card my-listing-card ${item.isSold ? "is-sold" : ""}`;
         card.setAttribute("data-id", item.id);
 
         const imageContent = item.imageUrl
@@ -301,16 +383,53 @@ function renderMyListings() {
             : `<div style="font-size: 48px;">📦</div>`;
 
         card.innerHTML = `
+            ${item.isSold ? `<span class="sold-ribbon">Sold</span>` : ""}
             <div class="product-image">${imageContent}</div>
             <div class="product-info">
-                <div class="product-category">${item.category || "General"}</div>
-                <div class="product-name">${item.name || "Untitled Item"}</div>
-                <span class="product-price">₹${item.price || 0}</span>
-            </div>`;
+                <div class="product-category">${item.category}</div>
+                <div class="product-name">${item.name}</div>
+                <span class="product-price">${formatMarketplacePrice(item)}</span>
+            </div>
+            <div class="listing-actions-bar">
+                <div class="listing-btn-group">
+                    <button type="button" class="action-btn edit-btn" data-id="${item.id}">Edit</button>
+                    <button type="button" class="action-btn delete-btn" data-id="${item.id}">Delete</button>
+                </div>
+                <button type="button" class="sold-toggle-btn ${item.isSold ? "marked-sold" : ""}" data-id="${item.id}">
+                    ${item.isSold ? "✓ Sold" : "Sold"}
+                </button>
+            </div>
+        `;
 
-        // Click to view item details
-        card.addEventListener("click", () => {
-            openProductDetailModal(item.id);
+        card.querySelector(".product-image").addEventListener("click", () => openProductDetailModal(item.id));
+        card.querySelector(".product-info").addEventListener("click", () => openProductDetailModal(item.id));
+
+        card.querySelector(".edit-btn").addEventListener("click", (e) => {
+            e.stopPropagation();
+            openEditItemModal(item);
+        });
+
+        card.querySelector(".delete-btn").addEventListener("click", async (e) => {
+            e.stopPropagation();
+            if (confirm(`Are you sure you want to delete "${item.name}"?`)) {
+                try {
+                    await db.collection("listings").doc(item.id).delete();
+                } catch (err) {
+                    alert("Failed to delete listing: " + err.message);
+                }
+            }
+        });
+
+        card.querySelector(".sold-toggle-btn").addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const newSoldStatus = !item.isSold;
+            try {
+                await db.collection("listings").doc(item.id).update({
+                    isSold: newSoldStatus
+                });
+            } catch (err) {
+                alert("Failed to update status: " + err.message);
+            }
         });
 
         myListingsGrid.appendChild(card);
@@ -318,7 +437,112 @@ function renderMyListings() {
 }
 
 /* =====================================================
-   8. REAL-TIME CHAT (FIRESTORE)
+   9. EDIT LISTING MODAL LOGIC (SELL-LIKE FLOW)
+===================================================== */
+const editListingModal = document.getElementById("editListingModal");
+const closeEditModal = document.getElementById("closeEditModal");
+const cancelEditModal = document.getElementById("cancelEditModal");
+const editListingForm = document.getElementById("editListingForm");
+const triggerEditImageBtn = document.getElementById("triggerEditImageBtn");
+const editItemImageInput = document.getElementById("editItemImage");
+const editImagePreviewImg = document.getElementById("editImagePreviewImg");
+const editFormError = document.getElementById("editFormError");
+const saveEditBtn = document.getElementById("saveEditBtn");
+
+let activeEditingItem = null;
+
+if (triggerEditImageBtn && editItemImageInput) {
+    triggerEditImageBtn.addEventListener("click", () => editItemImageInput.click());
+    editItemImageInput.addEventListener("change", function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                editImagePreviewImg.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
+function openEditItemModal(item) {
+    if (!editListingModal) return;
+    activeEditingItem = item;
+    
+    document.getElementById("editItemId").value = item.id;
+    document.getElementById("editItemName").value = item.name || "";
+    document.getElementById("editItemPrice").value = item.price || "";
+    document.getElementById("editItemCurrency").value = item.currency || "INR";
+    document.getElementById("editItemCategory").value = item.category || "Books";
+    document.getElementById("editItemDescription").value = item.description || "";
+    
+    editImagePreviewImg.src = item.imageUrl || "nmit-logo.png";
+    editItemImageInput.value = "";
+    if (editFormError) editFormError.classList.add("hidden");
+
+    editListingModal.classList.remove("hidden");
+}
+
+if (closeEditModal) closeEditModal.addEventListener("click", () => editListingModal.classList.add("hidden"));
+if (cancelEditModal) cancelEditModal.addEventListener("click", () => editListingModal.classList.add("hidden"));
+
+if (editListingForm) {
+    editListingForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const itemId = document.getElementById("editItemId").value;
+        const updatedName = document.getElementById("editItemName").value.trim();
+        const updatedPrice = parseFloat(document.getElementById("editItemPrice").value);
+        const updatedCurrency = document.getElementById("editItemCurrency").value;
+        const updatedCategory = document.getElementById("editItemCategory").value;
+        const updatedDesc = document.getElementById("editItemDescription").value.trim();
+        const newPhotoFile = editItemImageInput.files[0];
+
+        saveEditBtn.disabled = true;
+        saveEditBtn.textContent = newPhotoFile ? "Uploading photo..." : "Saving...";
+
+        try {
+            let finalImageUrl = activeEditingItem?.imageUrl || "";
+
+            if (newPhotoFile) {
+                const formData = new FormData();
+                formData.append("file", newPhotoFile);
+                formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+                const uploadRes = await fetch(
+                    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+                    { method: "POST", body: formData }
+                );
+                if (!uploadRes.ok) throw new Error("Image upload failed.");
+                const uploadData = await uploadRes.json();
+                finalImageUrl = uploadData.secure_url;
+            }
+
+            await db.collection("listings").doc(itemId).update({
+                name: updatedName,
+                price: updatedPrice,
+                currency: updatedCurrency,
+                category: updatedCategory,
+                description: updatedDesc,
+                imageUrl: finalImageUrl,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            editListingModal.classList.add("hidden");
+        } catch (err) {
+            console.error(err);
+            if (editFormError) {
+                editFormError.textContent = err.message || "Failed to save edits.";
+                editFormError.classList.remove("hidden");
+            }
+        } finally {
+            saveEditBtn.disabled = false;
+            saveEditBtn.textContent = "Update Listing";
+        }
+    });
+}
+
+/* =====================================================
+   10. REAL-TIME CHAT
 ===================================================== */
 const chatLayout = document.querySelector(".chat-layout");
 const chatBackBtn = document.getElementById("chatBackBtn");
@@ -383,11 +607,10 @@ function openChatConversation(chatId, chatData) {
 
     const otherUserName = (chatData.buyerUid === currentUser.uid) ? chatData.sellerName : chatData.buyerName;
     if (chatHeaderTitle) chatHeaderTitle.textContent = chatData.listingTitle || "Item";
-    if (chatHeaderSub) chatHeaderSub.textContent = `₹${chatData.listingPrice || ""} • Chatting with ${otherUserName || "Student"}`;
+    if (chatHeaderSub) chatHeaderSub.textContent = `Chatting with ${otherUserName || "Student"}`;
 
     document.querySelectorAll(".chat-list-item").forEach(el => el.classList.remove("active-chat"));
 
-    // Reset unread count if last message came from the other person
     if (chatData.lastSenderUid && chatData.lastSenderUid !== currentUser.uid) {
         db.collection("chats").doc(chatId).update({
             isRead: true,
@@ -454,12 +677,13 @@ async function startChatWithItem(item) {
     const chatDoc = await chatDocRef.get();
 
     if (!chatDoc.exists) {
-        const initialText = `Hi! I'm interested in buying your ${item.name} for ₹${item.price}. Is it still available on campus?`;
+        const initialText = `Hi! I'm interested in buying your ${item.name} for ₹${getPriceInRupees(item.price, item.currency)}. Is it still available on campus?`;
 
         await chatDocRef.set({
             listingId: item.id,
             listingTitle: item.name,
             listingPrice: item.price,
+            listingCurrency: item.currency || "INR",
             listingImage: item.imageUrl || "",
             buyerUid: buyerUid,
             buyerName: buyerName,
@@ -531,7 +755,7 @@ if (chatBackBtn && chatLayout) {
 }
 
 /* =====================================================
-   9. UNIFIED NAVIGATION ROUTING
+   11. UNIFIED NAVIGATION ROUTING
 ===================================================== */
 const pages = {
     home: document.getElementById("homePage"),
@@ -577,24 +801,32 @@ document.querySelectorAll(".bottom-tab-btn").forEach(btn => {
 });
 
 /* =====================================================
-   10. CATEGORY FILTER
+   12. TOGGLEABLE CATEGORY FILTER
 ===================================================== */
 const categoryButtons = document.querySelectorAll(".category-card");
 categoryButtons.forEach(button => {
     button.addEventListener("click", () => {
         const category = button.dataset.category;
-        const filtered = marketplaceItems.filter(item => item.category === category);
-        
+
+        if (activeSelectedCategory === category) {
+            activeSelectedCategory = null;
+            categoryButtons.forEach(b => b.classList.remove("selected-category"));
+            renderProducts(marketplaceItems);
+        } else {
+            activeSelectedCategory = category;
+            categoryButtons.forEach(b => b.classList.toggle("selected-category", b.dataset.category === category));
+            const filtered = marketplaceItems.filter(item => item.category === category);
+            renderProducts(filtered);
+        }
+
         switchNavigationTab("home");
-        renderProducts(filtered);
-        
         const marketSection = document.querySelector(".marketplace-section");
         if (marketSection) marketSection.scrollIntoView({ behavior: "smooth" });
     });
 });
 
 /* =====================================================
-   11. SEARCH
+   13. SEARCH
 ===================================================== */
 const searchInput = document.getElementById("searchInput");
 const searchButton = document.getElementById("searchButton");
@@ -603,7 +835,7 @@ const searchSuggestions = document.getElementById("searchSuggestions");
 function performSearch(query) {
     if (!query) {
         if (searchSuggestions) searchSuggestions.classList.add("hidden");
-        renderProducts(marketplaceItems);
+        renderProducts(activeSelectedCategory ? marketplaceItems.filter(i => i.category === activeSelectedCategory) : marketplaceItems);
         return;
     }
 
@@ -635,7 +867,7 @@ if (searchButton) {
 }
 
 /* =====================================================
-   12. CREATE LISTING
+   14. CREATE LISTING
 ===================================================== */
 const createListingForm = document.getElementById("createListingForm");
 const itemImageInput = document.getElementById("itemImage");
@@ -669,11 +901,12 @@ if (createListingForm) {
 
         const name = document.getElementById("itemName").value.trim();
         const price = parseFloat(document.getElementById("itemPrice").value);
+        const currency = document.getElementById("itemCurrency") ? document.getElementById("itemCurrency").value : "INR";
         const category = document.getElementById("itemCategory").value;
         const desc = document.getElementById("itemDescription").value.trim();
         const imageFile = itemImageInput.files[0];
 
-        if (!name || !price || !category || !desc || !imageFile) {
+        if (!name || isNaN(price) || !category || !desc || !imageFile) {
             if (formError) {
                 formError.textContent = "Please fill out all fields and upload an image.";
                 formError.classList.remove("hidden");
@@ -703,6 +936,7 @@ if (createListingForm) {
             await db.collection("listings").add({
                 name: name,
                 price: price,
+                currency: currency,
                 category: category,
                 description: desc,
                 imageUrl: uploadData.secure_url,
@@ -710,6 +944,7 @@ if (createListingForm) {
                 sellerEmail: currentUser.email,
                 sellerUid: currentUser.uid,
                 isFavorite: false,
+                isSold: false,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
 
@@ -733,7 +968,7 @@ if (createListingForm) {
 }
 
 /* =====================================================
-   13. AUTHENTICATION & SPARK CLIENT NOTIFICATIONS
+   15. AUTHENTICATION & SPARK NOTIFICATIONS
 ===================================================== */
 const desktopProfileNavLink = document.getElementById("desktopProfileNavLink");
 const bottomProfileTab = document.getElementById("bottomProfileTab");
@@ -764,10 +999,8 @@ auth.onAuthStateChanged(async (user) => {
         requestNativeNotificationPermission();
         monitorUnreadMessages(user.uid);
         subscribeToUserChats();
-
         renderMyListings();
         renderFavorites();
-
     } else {
         if (authBtn) authBtn.textContent = "Sign In";
         if (desktopProfileNavLink) desktopProfileNavLink.classList.add("hidden");
@@ -786,7 +1019,6 @@ auth.onAuthStateChanged(async (user) => {
         document.getElementById("userDeptDisplay").textContent = "Department not set";
         document.getElementById("userYearDisplay").textContent = "—";
 
-        // Hide badges
         const dBadge = document.getElementById("desktopUnreadBadge");
         const mBadge = document.getElementById("mobileUnreadBadge");
         if (dBadge) dBadge.classList.add("hidden");
@@ -807,12 +1039,11 @@ async function loadUserProfile(uid) {
         }
         return false;
     } catch (e) {
-        console.error("Error loading user profile:", e);
+        console.error("Error loading profile:", e);
         return false;
     }
 }
 
-// Native Browser Notifications (Zero Backend / Free Spark Plan)
 async function requestNativeNotificationPermission() {
     if (!("Notification" in window) || hasRequestedNotificationPermission) return;
     try {
@@ -821,11 +1052,10 @@ async function requestNativeNotificationPermission() {
         }
         hasRequestedNotificationPermission = true;
     } catch (e) {
-        console.warn("Notification permission request error:", e);
+        console.warn("Notification permission error:", e);
     }
 }
 
-// Real-Time Unread Message Monitor (Red Badge + Banner Alert)
 function monitorUnreadMessages(uid) {
     const desktopBadge = document.getElementById("desktopUnreadBadge");
     const mobileBadge = document.getElementById("mobileUnreadBadge");
@@ -861,7 +1091,6 @@ function monitorUnreadMessages(uid) {
             updateBadge(desktopBadge);
             updateBadge(mobileBadge);
 
-            // Trigger notification alert if new unread message arrives
             if (totalUnread > previousUnreadCount && newestIncomingMessage) {
                 if ("Notification" in window && Notification.permission === "granted") {
                     const senderTitle = newestIncomingMessage.buyerUid === uid 
@@ -960,7 +1189,6 @@ if (authForm) {
                 await userCredential.user.sendEmailVerification();
 
                 alert(`Account created! A verification link has been sent to ${email}.`);
-
                 closeAuthModalHandler();
                 switchNavigationTab("profile");
                 setTimeout(() => openEditProfileModalForSetup(), 300);
@@ -984,7 +1212,7 @@ if (authForm) {
 }
 
 /* =====================================================
-   14. PROFILE EDITING MODAL (FIRESTORE SYNC)
+   16. PROFILE EDITING MODAL (FIRESTORE SYNC)
 ===================================================== */
 const editProfileBtn = document.getElementById("editProfileBtn");
 const editProfileModal = document.getElementById("editProfileModal");
@@ -1076,26 +1304,22 @@ const tabContents = document.querySelectorAll(".tab-content");
 
 profileTabs.forEach(tab => {
     tab.addEventListener("click", () => {
-        const targetTabName = tab.getAttribute("data-tab"); // "favorites" or "listings"
+        const targetTabName = tab.getAttribute("data-tab");
 
-        // 1. Update button styling
         profileTabs.forEach(t => t.classList.remove("active"));
         tab.classList.add("active");
 
-        // 2. Hide all tab content panes
         tabContents.forEach(pane => {
             pane.classList.remove("active-tab");
             pane.classList.add("hidden");
         });
 
-        // 3. Show targeted pane
         const targetPane = document.getElementById(targetTabName + "Tab");
         if (targetPane) {
             targetPane.classList.remove("hidden");
             targetPane.classList.add("active-tab");
         }
 
-        // 4. Force re-render the content
         if (targetTabName === "listings") {
             renderMyListings();
         } else if (targetTabName === "favorites") {
