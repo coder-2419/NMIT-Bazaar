@@ -20,6 +20,16 @@
     --shadow-elevated: 0 20px 35px -10px rgba(15, 23, 42, 0.08), 0 10px 15px -5px rgba(15, 23, 42, 0.04);
 }
 
+html, body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    position: relative;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 html { 
     scroll-behavior: smooth; 
 }
@@ -40,7 +50,12 @@ body {
 }
 
 .hidden { display: none !important; }
-.app { min-height: 100vh; }
+.app { 
+    min-height: 100vh; 
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}
 
 
 .loading-screen {
@@ -621,6 +636,9 @@ footer { margin-top: 90px; padding: 35px 5%; background: #0f172a; color: white; 
         height: 60px; 
         padding: 0 16px; 
         justify-content: space-between; 
+        width: 100% !important;
+        max-width: 100vw !important;
+        box-sizing: border-box !important;
     }
     
     .brand-logo { width: 36px; height: 40px; }
@@ -637,36 +655,86 @@ footer { margin-top: 90px; padding: 35px 5%; background: #0f172a; color: white; 
     }
 
     
+    .hero, 
+    .search-section, 
+    .section, 
+    .marketplace-section,
+    .simple-page {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding-left: 16px !important;
+        padding-right: 16px !important;
+    }
+
+    .hero {
+        margin-top: 14px !important;
+        border-radius: 20px !important;
+        min-height: auto !important;
+    }
+    
+    .hero-content {
+        padding: 35px 20px 45px !important;
+    }
+
+    .search-section {
+        margin-top: -24px !important;
+    }
+
+    
+    .category-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
+        width: 100% !important;
+    }
+
+    .product-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
+        width: 100% !important;
+    }
+
+    
     .mobile-bottom-nav {
-        display: flex;
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 64px;
-        background: rgba(255, 255, 255, 0.96);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
-        border-top: 1px solid #e2e8f0;
-        z-index: 9999;
-        justify-content: space-around;
-        align-items: center;
-        padding: 4px 10px 6px;
-        box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.06);
+        display: flex !important;
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 64px !important;
+        background: rgba(255, 255, 255, 0.98) !important;
+        backdrop-filter: blur(14px) !important;
+        -webkit-backdrop-filter: blur(14px) !important;
+        border-top: 1px solid #e2e8f0 !important;
+        z-index: 99999 !important;
+        justify-content: space-around !important;
+        align-items: center !important;
+        padding: 4px 0 6px !important;
+        box-sizing: border-box !important;
+        box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.08) !important;
+        transform: translateZ(0);
     }
 
     .bottom-tab-btn {
-        flex: 1;
-        background: transparent;
-        border: none;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 2px;
-        cursor: pointer;
-        font-family: inherit;
-        color: #64748b;
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 2px !important;
+        cursor: pointer !important;
+        font-family: inherit !important;
+        color: #64748b !important;
+        padding: 0 !important;
+        margin: 0 !important;
     }
 
     .bottom-tab-btn .b-icon { font-size: 20px; line-height: 1; }
@@ -758,13 +826,11 @@ footer { margin-top: 90px; padding: 35px 5%; background: #0f172a; color: white; 
         height: 100% !important;
     }
 
-    .category-grid { grid-template-columns: repeat(3, 1fr); }
-    .product-grid { grid-template-columns: repeat(2, 1fr); }
     footer { padding-bottom: 90px; }
 }
 
 @media (max-width: 500px) {
-    .category-grid { grid-template-columns: repeat(2, 1fr); }
-    .product-grid { grid-template-columns: 1fr; }
+    .category-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .product-grid { grid-template-columns: 1fr !important; }
     .hero h1 { font-size: 34px; }
 }

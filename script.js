@@ -17,7 +17,7 @@ const auth = firebase.auth();
 
 
 const CLOUDINARY_CLOUD_NAME = "a9wphmyb"; 
-const CLOUDINARY_UPLOAD_PRESET = "NMIT-Bazaar";             
+const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";             
 
 
 let currentUser = null;
