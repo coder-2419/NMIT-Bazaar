@@ -1,4 +1,4 @@
-console.log("Script initialized with email verification gate 🚀");
+console.log("Script initialized with user-scoped favorites and email verification gate 🚀");
 
 
 const firebaseConfig = {
@@ -17,7 +17,7 @@ const auth = firebase.auth();
 
 
 const CLOUDINARY_CLOUD_NAME = "a9wphmyb"; 
-const CLOUDINARY_UPLOAD_PRESET = "NMIT_Bazaar";             
+const CLOUDINARY_UPLOAD_PRESET = "NMITBazaar";             
 
 
 let currentUser = null;
@@ -850,19 +850,53 @@ categoryButtons.forEach(button => {
 });
 
 
+/* =====================================================
+   13. SEARCH & AUTOCOMPLETE SUGGESTIONS
+===================================================== */
 const searchInput = document.getElementById("searchInput");
 const searchButton = document.getElementById("searchButton");
 const searchSuggestions = document.getElementById("searchSuggestions");
 
+function renderSearchSuggestions(matches) {
+    if (!searchSuggestions) return;
+
+    if (!matches || matches.length === 0) {
+        searchSuggestions.innerHTML = "";
+        searchSuggestions.classList.add("hidden");
+        return;
+    }
+
+    // Limit suggestions to top 5 matches
+    const topMatches = matches.slice(0, 5);
+
+    searchSuggestions.innerHTML = topMatches.map(item => `
+        <div class="suggestion-item" data-id="${item.id}">
+            <div class="suggestion-icon">
+                ${item.imageUrl ? `<img src="${item.imageUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">` : "📦"}
+            </div>
+            <div>
+                <div class="suggestion-name">${item.name}</div>
+                <div class="suggestion-category">${item.category} • ${formatMarketplacePrice(item)}</div>
+            </div>
+        </div>
+    `).join("");
+
+    searchSuggestions.classList.remove("hidden");
+}
+
 function performSearch(query) {
     if (!query) {
-        if (searchSuggestions) searchSuggestions.classList.add("hidden");
+        if (searchSuggestions) {
+            searchSuggestions.innerHTML = "";
+            searchSuggestions.classList.add("hidden");
+        }
         renderProducts(activeSelectedCategory ? marketplaceItems.filter(i => i.category === activeSelectedCategory) : marketplaceItems);
         return;
     }
 
     let matches = marketplaceItems.filter(item =>
-        item.name.toLowerCase().includes(query) || item.category.toLowerCase().includes(query)
+        item.name.toLowerCase().includes(query) || 
+        (item.category && item.category.toLowerCase().includes(query))
     );
 
     matches.sort((a, b) => {
@@ -873,20 +907,52 @@ function performSearch(query) {
         return 0;
     });
 
+    // 1. Update the marketplace grid
     renderProducts(matches);
+
+    // 2. Render the interactive dropdown suggestions
+    renderSearchSuggestions(matches);
 }
 
 if (searchInput) {
     searchInput.addEventListener("input", function() {
         performSearch(this.value.trim().toLowerCase());
     });
+
+    // Close suggestions if user presses Escape
+    searchInput.addEventListener("keydown", function(e) {
+        if (e.key === "Escape" && searchSuggestions) {
+            searchSuggestions.classList.add("hidden");
+        }
+    });
 }
+
 if (searchButton) {
     searchButton.addEventListener("click", (e) => {
         e.preventDefault();
         performSearch(searchInput.value.trim().toLowerCase());
+        if (searchSuggestions) searchSuggestions.classList.add("hidden");
     });
 }
+
+// Handle clicking on a suggestion item
+if (searchSuggestions) {
+    searchSuggestions.addEventListener("click", (e) => {
+        const itemElem = e.target.closest(".suggestion-item");
+        if (itemElem) {
+            const itemId = itemElem.getAttribute("data-id");
+            searchSuggestions.classList.add("hidden");
+            openProductDetailModal(itemId);
+        }
+    });
+}
+
+// Close suggestions when clicking outside the search bar
+document.addEventListener("click", (e) => {
+    if (!e.target.closest(".search-wrapper") && searchSuggestions) {
+        searchSuggestions.classList.add("hidden");
+    }
+});
 
 
 const createListingForm = document.getElementById("createListingForm");
