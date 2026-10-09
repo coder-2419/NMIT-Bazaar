@@ -1,4 +1,4 @@
-console.log("Script initialized with user-scoped favorites and email verification gate 🚀");
+console.log("Script initialized with email verification gate 🚀");
 
 
 const firebaseConfig = {
